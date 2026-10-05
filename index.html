@@ -164,10 +164,10 @@ html:has(body.output),body.output,body.output #wrap{background:transparent!impor
   border:1px solid var(--line2);background:linear-gradient(90deg,color-mix(in srgb,var(--chip) 60%,transparent),color-mix(in srgb,var(--p2) 50%,transparent))}
 /* 編輯器預覽：疊在畫面上的 CCFOLIA 模擬畫面（OBS 輸出畫面沒有這層） */
 #sbLayer,#voiceLayer{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0;pointer-events:none;overflow:hidden}
-/* 語音：Reactive 的單人頭像，放在角色格裡（狀態條右邊），位置與大小由「語音頭像」設定調整 */
+/* 語音：Reactive 的單人頭像預覽（實際在 OBS 是每個角色各自的瀏覽器來源，輸出畫面沒有這層） */
 #voiceLayer iframe{position:absolute;border:0;background:transparent;overflow:hidden;color-scheme:normal}
 #sbLayer iframe{position:absolute;border:0;background:transparent;transform-origin:0 0;color-scheme:normal}
-body.output #sbLayer{display:none}
+body.output #sbLayer,body.output #voiceLayer{display:none}
 /* 編輯器：狀態條設定 */
 .sb-tabs{display:flex;gap:2px;border-bottom:1px solid var(--ed-line);margin:8px 0 2px}
 .sb-tabs button{flex:1;border:0;border-bottom:2px solid transparent;border-radius:0;background:none;color:var(--ed-dim);padding:6px 2px;white-space:nowrap}
@@ -334,7 +334,7 @@ async function saveObsFile() {
 async function packState() {
   const o = structuredClone(state);
   delete o.sb;                                              // 輸出畫面用不到狀態條設定
-  o.characters = o.characters.map(c => ({ name: c.name, voice: c.voice || '', voiceX: c.voiceX, voiceSize: c.voiceSize })); // 人數與語音頭像（ID 只給編輯器用）
+  o.characters = o.characters.map(c => ({ name: c.name })); // 只需要人數（ID、語音頭像都是角色自己的 OBS 來源）
   const stream = new Blob([JSON.stringify(o)]).stream().pipeThrough(new CompressionStream('deflate-raw'));
   const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
   let bin = '';
@@ -483,6 +483,8 @@ function updateObsInfo() {
     el.classList.toggle('warn', shrink);
     el.innerHTML = `OBS 瀏覽器來源：寬 <b>${f.w}</b> × 高 <b>${f.h}</b><br>編輯變形 → 位置 <b>${f.x}, ${f.y}</b>　大小 <b>${Math.round(f.w * f.k)} × ${Math.round(f.h * f.k)}</b>`
       + (shrink ? `<br>⚠ 放不下，已縮小成 ${Math.round(f.k * 100)}%。字會變小，建議把「單條寬度」或頭像調小。` : '');
+    const vo = ed.querySelector(`[data-voiceobs="${i}"]`), v = voicePos(i);
+    if (vo && v) vo.innerHTML = `Reactive 瀏覽器來源：寬 <b>${v.size}</b> × 高 <b>${v.size}</b><br>編輯變形 → 位置 <b>${v.x}, ${v.y}</b>`;
   });
 }
 
@@ -535,9 +537,18 @@ function syncPreviews() {
   }
 }
 
-/* ---------- 語音：Reactive 單人頭像（編輯器與輸出畫面都會顯示） ---------- */
+/* ---------- 語音：Reactive 單人頭像 ----------
+   在 OBS 裡是每個角色各自的瀏覽器來源（跟 CCFOLIA 來源一樣），這裡只在編輯器預覽並算出要填的位置 */
 const voiceFrames = [];
+// 語音頭像在 1920×1080 上的位置：角色格左邊 + voiceX，上下置中
+function voicePos(i) {
+  const c = state.characters[i], s = slotInfo[i];
+  if (!s) return null;
+  const size = Number(c.voiceSize) || 90, b = s.box;
+  return { x: Math.round(b.x + (Number(c.voiceX) || 0)), y: Math.round(b.y + (b.h - size) / 2), size };
+}
 function syncVoice() {
+  if (OUTPUT) return;
   const layer = $('#voiceLayer'), n = state.characters.length;
   while (voiceFrames.length > n) voiceFrames.pop()?.remove();
   for (let i = 0; i < n; i++) {
@@ -551,8 +562,8 @@ function syncVoice() {
       layer.append(fr);
     }
     if (fr.dataset.src !== url) { fr.dataset.src = url; fr.src = url; }   // 只在網址改變時重新載入
-    const c = state.characters[i], size = Number(c.voiceSize) || 90, b = s.box;
-    Object.assign(fr.style, { left: b.x + (Number(c.voiceX) || 0) + 'px', top: b.y + (b.h - size) / 2 + 'px', width: size + 'px', height: size + 'px' });
+    const v = voicePos(i);
+    Object.assign(fr.style, { left: v.x + 'px', top: v.y + 'px', width: v.size + 'px', height: v.size + 'px' });
   }
 }
 
@@ -794,7 +805,8 @@ function charBlock(c, i) {
       <div class="obsline" data-obs="${i}"></div>
       ${txt('語音：Reactive 單人連結（可不填）', `characters.${i}.voice`, 'https://reactive.fugi.tech/individual/…')}
       <p class="hint" style="margin:2px 0 0" data-voicenote="${i}"></p>
-      ${voiceUrl(c) ? pxRange('語音頭像：左右位置（距離角色格左邊）', `characters.${i}.voiceX`, 0, 380) + pxRange('語音頭像：大小', `characters.${i}.voiceSize`, 30, 160) : ''}
+      ${voiceUrl(c) ? pxRange('語音頭像：左右位置（距離角色格左邊）', `characters.${i}.voiceX`, 0, 380) + pxRange('語音頭像：大小', `characters.${i}.voiceSize`, 30, 160)
+        + `<div class="charbtns"><button data-copy="voice" data-i="${i}">複製 Reactive 網址</button></div><div class="obsline" data-voiceobs="${i}"></div>` : ''}
     </div>`;
 }
 
@@ -847,6 +859,7 @@ function buildEditor() {
         <li>角色的來源要放在跑團介面那個瀏覽器來源的<b>上面</b>，右鍵 →「變形 → 編輯變形」，填入顯示的<b>位置</b>與<b>大小</b>，就會剛好落在角色格裡。</li>
         <li>畫面一片空白時：來源右鍵 →「互動」，登入 CCFOLIA 並進入房間（做過一次就會記住）。</li>
         <li>第二位角色開始請<b>重新「新增來源」</b>建立，不要用「貼上（參照）」，否則全部都會變成同一個角色。</li>
+        <li>有語音頭像的角色：再「新增來源 → 瀏覽器」，網址貼「複製 Reactive 網址」，寬高與位置照角色底下的 <b>Reactive 瀏覽器來源</b>數字填。放在該角色 CCFOLIA 來源的<b>上面</b>（不會被狀態條蓋住），兩個來源選起來按右鍵「群組選取的項目」，之後就會一起移動。</li>
       </ol>
       <p class="hint">CCFOLIA 角色「狀態」的排列順序對應第 1、2、3 條的顏色（例：HP → MP → SAN）。聊天室輸入 <code>:HP-3</code>、<code>:SAN=45</code> 之類的指令，OBS 也會立刻更新。改了狀態條樣式或人數之後，要重新複製各角色的 CSS、核對尺寸與位置，跑團介面本身也要重新「複製 OBS 網址」或「儲存 OBS 檔案」（角色格會跟著變）。</p>
     </div></details>
@@ -894,7 +907,7 @@ function updateCharNotes() {
     const c = state.characters[el.dataset.voicenote], v = String(c.voice || '').trim();
     el.style.color = '#ffb86b';
     el.textContent = !v ? '' : !voiceUrl(c) ? '要貼 https://reactive.fugi.tech/ 開頭的網址。'
-      : (el.style.color = '', '語音頭像會出現在這個角色格裡（上下置中）。被狀態條蓋到時，往右移、調小，或把「狀態條樣式 → 單條寬度」調窄。');
+      : (el.style.color = '', '在 OBS 另外新增一個瀏覽器來源放這個 Reactive 網址，照下面的數字擺，再跟這個角色的 CCFOLIA 來源設成同一個群組，就會一起移動。');
   }
   for (const el of ed.querySelectorAll('[data-note]')) {
     const c = state.characters[el.dataset.note];
@@ -940,7 +953,10 @@ ed.addEventListener('click', e => {
     commit(); buildEditor(); toast(`已套用「${P.DESIGNS[key].label}」`);
   } else if (t.dataset.copy) {
     const i = +t.dataset.i, c = cs[i];
-    if (t.dataset.copy === 'url') {
+    if (t.dataset.copy === 'voice') {
+      const v = voicePos(i);
+      copyText(voiceUrl(c)).then(ok => toast(ok ? `已複製「${c.name}」的 Reactive 網址（來源 ${v?.size}×${v?.size}）` : '複製失敗'));
+    } else if (t.dataset.copy === 'url') {
       const url = charUrl(c);
       if (!url) return toast('需要同時填入房間網址與角色 ID');
       copyText(url).then(ok => toast(ok ? `已複製「${c.name}」的網址` : '複製失敗'));
