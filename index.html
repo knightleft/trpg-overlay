@@ -163,7 +163,9 @@ html:has(body.output),body.output,body.output #wrap{background:transparent!impor
 .slot{flex:none;box-sizing:border-box;padding:6px;position:relative;
   border:1px solid var(--line2);background:linear-gradient(90deg,color-mix(in srgb,var(--chip) 60%,transparent),color-mix(in srgb,var(--p2) 50%,transparent))}
 /* 編輯器預覽：疊在畫面上的 CCFOLIA 模擬畫面（OBS 輸出畫面沒有這層） */
-#sbLayer{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0;pointer-events:none;overflow:hidden}
+#sbLayer,#voiceLayer{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0;pointer-events:none;overflow:hidden}
+/* 語音：Reactive 的單人頭像，放在角色頭像的位置（CCFOLIA 的頭像會變透明讓它透出來） */
+#voiceLayer iframe{position:absolute;border:0;background:transparent;overflow:hidden;color-scheme:normal}
 #sbLayer iframe{position:absolute;border:0;background:transparent;transform-origin:0 0;color-scheme:normal}
 body.output #sbLayer{display:none}
 /* 編輯器：狀態條設定 */
@@ -199,7 +201,7 @@ body.output #sbLayer{display:none}
 <body>
 <div id="app">
   <aside id="editor"></aside>
-  <main id="wrap"><div id="stage"></div><div id="sbLayer"></div></main>
+  <main id="wrap"><div id="stage"></div><div id="voiceLayer"></div><div id="sbLayer"></div></main>
 </div>
 <div id="toast"></div>
 
@@ -250,7 +252,8 @@ const DEFAULT = {
     { name: '凱爾', color: '#60a5fa', ccf: '' },
   ],
   // sizes: 編輯器量到的各角色瀏覽器來源尺寸，OBS 輸出畫面靠它排出一樣的角色格
-  ccf: { room: '', followTheme: true, sizes: [] },
+  // avatars: 編輯器量到的各角色頭像在來源裡的位置，輸出畫面靠它擺 Reactive 語音頭像
+  ccf: { room: '', followTheme: true, sizes: [], avatars: [] },
   sb: defaultSb(),
   talk: { show: true },   // 雜談區；不顯示時對話區延伸成一整條
   kp: { show: false, name: '主持人', sub: 'GAME MASTER', avatar: '', icon: '🐙' },
@@ -276,7 +279,7 @@ function fixState(s) {
   }
   for (const k of ['charsBg', 'vtBg', 'ccf', 'scene', 'talk']) s[k] = { ...DEFAULT[k], ...s[k] };
   s.sb = s.sb ? M.normalize(s.sb) : defaultSb();
-  if (Array.isArray(s.characters)) s.characters = s.characters.map(c => ({ ccf: '', ...c }));
+  if (Array.isArray(s.characters)) s.characters = s.characters.map(c => ({ ccf: '', voice: '', ...c }));
   return Object.assign(structuredClone(DEFAULT), s);
 }
 function load() {
@@ -332,7 +335,7 @@ async function saveObsFile() {
 async function packState() {
   const o = structuredClone(state);
   delete o.sb;                                              // 輸出畫面用不到狀態條設定
-  o.characters = o.characters.map(c => ({ name: c.name })); // 只需要人數（頭像、ID 只給編輯器用）
+  o.characters = o.characters.map(c => ({ name: c.name, voice: c.voice || '' })); // 人數與語音連結（ID 只給編輯器用）
   const stream = new Blob([JSON.stringify(o)]).stream().pipeThrough(new CompressionStream('deflate-raw'));
   const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
   let bin = '';
@@ -419,6 +422,7 @@ function render() {
   for (const [k, v] of [['hx', hole.offsetLeft], ['hy', hole.offsetTop], ['hw', hole.offsetWidth], ['hh', hole.offsetHeight]]) st.style.setProperty('--' + k, v + 'px');
   layoutSlots(st);
   syncPreviews();
+  syncVoice();
 }
 
 /* ---------- CCFOLIA 角色格 ---------- */
@@ -465,9 +469,16 @@ function layoutSlots(st) {
   updateObsInfo();
 }
 const charUrl = c => M.characterUrl(state.ccf.room, c.ccf);
+const voiceUrl = c => /^https:\/\/reactive\.fugi\.tech\/\S+$/.test(String(c.voice || '').trim()) ? String(c.voice).trim() : '';
 const charCss = i => {
   const c = state.characters[i];
-  return C.build(state.sb, { name: c.name, color: c.color, url: charUrl(c), size: sizeOf(i) });
+  let css = C.build(state.sb, { name: c.name, color: c.color, url: charUrl(c), size: sizeOf(i) });
+  if (voiceUrl(c) && state.sb.avatar.show) css += `
+/* ---------- 語音：頭像位置留給跑團介面裡的 Reactive 語音頭像 ---------- */
+.MuiBadge-root > .MuiAvatar-root { background: transparent !important; }
+.MuiBadge-root .MuiAvatar-root .MuiAvatar-root, .MuiBadge-root .MuiAvatar-img { visibility: hidden !important; }
+`;
+  return css;
 };
 function updateObsInfo() {
   if (OUTPUT) return;
@@ -494,8 +505,14 @@ function measureFrame(i) {
   const sz = K.measure(f.doc), old = state.ccf.sizes[i];
   f.iframe.style.width = sz.w + 'px';
   f.iframe.style.height = sz.h + 'px';
-  if (old && old.w === sz.w && old.h === sz.h) return;
+  // 頭像外框內側的位置（給 Reactive 語音頭像用）；沒顯示頭像時是 null
+  const av = f.doc.querySelector('.MuiBadge-root > .MuiAvatar-root'), r = av?.getBoundingClientRect();
+  const radius = av ? parseFloat(f.doc.defaultView.getComputedStyle(av).borderTopLeftRadius) || 0 : 0;
+  const avatar = r && r.width > 0 ? { x: Math.round(r.left + av.clientLeft), y: Math.round(r.top + av.clientTop), w: av.clientWidth, h: av.clientHeight, r: Math.max(0, radius - av.clientLeft) } : null;
+  const oldAv = state.ccf.avatars[i] ?? null;
+  if (old && old.w === sz.w && old.h === sz.h && JSON.stringify(oldAv) === JSON.stringify(avatar)) return;
   state.ccf.sizes[i] = sz;
+  state.ccf.avatars[i] = avatar;
   clearTimeout(sizeTimer);
   sizeTimer = setTimeout(commit, 30);
 }
@@ -504,6 +521,7 @@ function syncPreviews() {
   const layer = $('#sbLayer'), n = state.characters.length;
   while (frames.length > n) frames.pop().iframe.remove();
   if (state.ccf.sizes.length > state.characters.length) state.ccf.sizes.length = state.characters.length;
+  if (state.ccf.avatars.length > state.characters.length) state.ccf.avatars.length = state.characters.length;
   for (let i = 0; i < n; i++) {
     let f = frames[i];
     if (!f) {
@@ -530,13 +548,36 @@ function syncPreviews() {
   }
 }
 
+/* ---------- 語音：Reactive 單人頭像（編輯器與輸出畫面都會顯示） ---------- */
+const voiceFrames = [];
+function syncVoice() {
+  const layer = $('#voiceLayer'), n = state.characters.length;
+  while (voiceFrames.length > n) voiceFrames.pop()?.remove();
+  for (let i = 0; i < n; i++) {
+    const url = voiceUrl(state.characters[i]), a = state.sb.avatar.show ? state.ccf.avatars[i] : null, s = slotInfo[i];
+    let fr = voiceFrames[i];
+    if (!url || !a || !s) { if (fr) { fr.remove(); voiceFrames[i] = null; } continue; }
+    if (!fr) {
+      fr = voiceFrames[i] = document.createElement('iframe');
+      fr.tabIndex = -1;
+      fr.setAttribute('allowtransparency', 'true');
+      layer.append(fr);
+    }
+    if (fr.dataset.src !== url) { fr.dataset.src = url; fr.src = url; }   // 只在網址改變時重新載入
+    Object.assign(fr.style, { left: s.x + a.x * s.k + 'px', top: s.y + a.y * s.k + 'px', width: a.w * s.k + 'px', height: a.h * s.k + 'px', borderRadius: a.r * s.k + 'px' });
+  }
+}
+
 function fit() {
   const w = $('#wrap'), sc = Math.min(w.clientWidth / 1920, w.clientHeight / 1080);
   const tf = `translate(${(w.clientWidth - 1920 * sc) / 2}px,${(w.clientHeight - 1080 * sc) / 2}px) scale(${sc})`;
   $('#stage').style.transform = tf;
   $('#sbLayer').style.transform = tf;
+  $('#voiceLayer').style.transform = tf;
 }
 window.addEventListener('resize', fit);
+// 網路字型載入後標題高度會變，角色格位置要重算（不然顯示的 OBS 位置會差幾 px）
+document.fonts.addEventListener('loadingdone', () => render());
 
 /* ---------- 編輯器 ---------- */
 const txt = (label, path, ph = '') => `<label class="f">${label}</label><input type="text" data-path="${path}" value="${esc(getPath(path))}" placeholder="${esc(ph)}">`;
@@ -762,6 +803,8 @@ function charBlock(c, i) {
       <p class="hint" style="color:#ffb86b;margin:2px 0 0" data-note="${i}"></p>
       <div class="charbtns"><button class="primary" data-copy="css" data-i="${i}">複製 CSS</button><button data-copy="url" data-i="${i}">複製網址</button></div>
       <div class="obsline" data-obs="${i}"></div>
+      ${txt('語音：Reactive 單人連結（可不填）', `characters.${i}.voice`, 'https://reactive.fugi.tech/individual/…')}
+      <p class="hint" style="margin:2px 0 0" data-voicenote="${i}"></p>
     </div>`;
 }
 
@@ -857,6 +900,13 @@ function buildEditor() {
   updateObsInfo();
 }
 function updateCharNotes() {
+  for (const el of ed.querySelectorAll('[data-voicenote]')) {
+    const c = state.characters[el.dataset.voicenote], v = String(c.voice || '').trim();
+    el.style.color = '#ffb86b';
+    el.textContent = !v ? '' : !voiceUrl(c) ? '要貼 https://reactive.fugi.tech/ 開頭的網址。'
+      : !state.sb.avatar.show ? '狀態條樣式的「顯示頭像」關著，語音頭像沒地方放。請到「📊 CCFOLIA 狀態條樣式 → 版面」打開頭像。'
+      : (el.style.color = '', '說話時這個角色的頭像會換成 Reactive 的語音頭像。記得重新複製這個角色的 CSS。');
+  }
   for (const el of ed.querySelectorAll('[data-note]')) {
     const c = state.characters[el.dataset.note];
     el.textContent = !M.parseCharacter(c.ccf) ? '填入角色 ID 後就能產生網址。'
@@ -880,7 +930,7 @@ ed.addEventListener('input', e => {
   if (p.startsWith('theme.')) $('#rtcLink').href = rtcUrl();
   commit();
   if (p.startsWith('sb.')) sbRefresh();
-  if (p === 'ccf.room' || /^characters\.\d+\.ccf$/.test(p)) updateCharNotes();
+  if (p === 'ccf.room' || /^characters\.\d+\.(ccf|voice)$/.test(p) || p === 'sb.avatar.show') updateCharNotes();
 });
 ed.addEventListener('click', e => {
   const t = e.target.closest('button');
@@ -920,7 +970,7 @@ ed.addEventListener('click', e => {
   } else if (t.dataset.clear) {
     setPath(t.dataset.clear, ''); buildEditor(); commit();
   } else if (t.id === 'addChar') {
-    cs.push({ name: '新角色', color: '#c4b5fd', ccf: '' });
+    cs.push({ name: '新角色', color: '#c4b5fd', ccf: '', voice: '' });
     buildEditor(); commit();
   } else if (t.id === 'obsUrl') {
     obsUrl().then(url => {
