@@ -104,13 +104,14 @@ body.output #editor{display:none}
 /* 輸出畫面背景全透明（OBS 瀏覽器來源才透得過去） */
 html:has(body.output),body.output,body.output #wrap{background:transparent!important}
 /* 劇情畫面右上角：遊戲內的時間、地點（空的那行不顯示，兩行都空就整塊隱藏） */
-.sinfo{position:absolute;top:18px;right:18px;max-width:60%;padding:10px 20px 10px 16px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 14px;align-items:baseline;
+.sinfo{position:absolute;top:18px;right:18px;max-width:60%;padding:.45em .9em;display:flex;flex-direction:column;gap:.15em;line-height:1.35;letter-spacing:1px;
   background:linear-gradient(180deg,color-mix(in srgb,var(--p1) 90%,transparent),color-mix(in srgb,var(--bg) 90%,transparent));border:1px solid var(--line);
   box-shadow:inset 0 0 0 3px var(--p2),inset 0 0 0 4px var(--line2),0 0 14px var(--shadow)}
 .sinfo:empty{display:none}
-.sinfo b{font-family:Cinzel,"Noto Serif TC",serif;font-size:13px;font-weight:600;letter-spacing:2px;color:var(--sec)}
-.sinfo b::before{content:"✦";color:var(--acc);margin-right:6px;font-size:10px;vertical-align:2px}
-.sinfo span{font-size:21px;letter-spacing:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sinfo div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 裝飾：front = 前面、both = 前後、none = 無 */
+.sinfo:is([data-deco=front],[data-deco=both]) div::before{content:"✦";color:var(--acc);margin-right:.45em;font-size:.55em;vertical-align:.25em}
+.sinfo[data-deco=both] div::after{content:"✦";color:var(--acc);margin-left:.45em;font-size:.55em;vertical-align:.25em}
 .lower{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:14px}
 
 /* 右側 */
@@ -235,7 +236,8 @@ function defaultSb() { const sb = M.defaultState(); M.applyDesign(sb, 'overlay')
 const DEFAULT = {
   title: '迷霧中的低語', subtitle: 'Call of Cthulhu 7th edition',
   hashtags: '#TRPG實況 #CoC7th #微醺染香', twitter: '@senkakira',
-  scene: { time: '1925年10月3日　深夜', place: '阿卡姆・米斯卡托尼克大學' },
+  // 劇情畫面右上角的資訊牌：lines 行數（1/2）、deco 裝飾（front 前面 / both 前後 / none 無）、size 字體大小 px
+  scene: { lines: 2, line1: '1925年10月3日　深夜', line2: '阿卡姆・米斯卡托尼克大學', deco: 'front', size: 21 },
   characters: [
     { name: '艾莉亞', avatar: '', color: '#c084fc', ccf: '' },
     { name: '雷恩', avatar: '', color: '#f87171', ccf: '' },
@@ -256,7 +258,9 @@ let state = load();
 // 舊資料或匯入的 JSON 補齊缺少的欄位
 function fixState(s) {
   if (s.kp?.name === 'KP' && s.kp.sub === 'KEEPER') Object.assign(s.kp, { name: '主持人', sub: 'GAME MASTER' });
-  for (const k of ['charsBg', 'vtBg', 'ccf']) s[k] = { ...DEFAULT[k], ...s[k] };
+  // 舊版的時間／地點欄位搬到第 1、2 行
+  if (s.scene && s.scene.line1 === undefined && (s.scene.time !== undefined || s.scene.place !== undefined)) Object.assign(s.scene, { line1: s.scene.time || '', line2: s.scene.place || '' });
+  for (const k of ['charsBg', 'vtBg', 'ccf', 'scene']) s[k] = { ...DEFAULT[k], ...s[k] };
   s.sb = s.sb ? M.normalize(s.sb) : defaultSb();
   if (Array.isArray(s.characters)) s.characters = s.characters.map(c => ({ ccf: '', ...c }));
   return Object.assign(structuredClone(DEFAULT), s);
@@ -338,7 +342,7 @@ function render() {
   </div>
   <div class="col">
     <div class="panel" id="p-scene">
-      <div class="sinfo">${[["時間", s.scene.time], ["地點", s.scene.place]].filter(([, v]) => String(v ?? "").trim()).map(([k, v]) => `<b>${k}</b><span>${esc(v)}</span>`).join("")}</div>
+      <div class="sinfo" data-deco="${esc(s.scene.deco)}" style="font-size:${Number(s.scene.size) || 21}px">${[s.scene.line1, s.scene.lines == 2 ? s.scene.line2 : ''].filter(v => String(v ?? '').trim()).map(v => `<div>${esc(v)}</div>`).join('')}</div>
     </div>
     <div class="lower">
       <div class="panel"><div class="ph"><div class="t">TRPG 對話區</div><div class="e">DICE &amp; ROLEPLAY</div></div></div>
@@ -729,9 +733,15 @@ function buildEditor() {
     <p class="hint">右邊即時預覽 1920×1080，資料自動存在瀏覽器裡。<b>OBS 瀏覽器來源讀不到這裡的存檔</b>：改完後按「複製 OBS 網址」，貼到 OBS 瀏覽器來源的網址欄（寬 1920、高 1080），每次修改都要重新複製貼上一次。</p>
 
     <details data-k="scene"><summary>📜 劇情畫面（16:9 挖空區，可不填）</summary><div class="sec">
-      <p class="hint">16:9 區域是挖空的（只留外框，裡面透明），在 OBS 把圖片、遊戲畫面或影片放在這個介面的<b>下面</b>就會透出來。要用 OBS 的「瀏覽器來源」才看得到透明；「視窗擷取」會變成一片底色。右上角可以顯示遊戲內的時間與地點，留空的那一行不會顯示。</p>
-      ${txt('時間（遊戲內）', 'scene.time', '例：1925年10月3日　深夜')}
-      ${txt('地點', 'scene.place', '例：阿卡姆・米斯卡托尼克大學')}
+      <p class="hint">16:9 區域是挖空的（只留外框，裡面透明），在 OBS 把圖片、遊戲畫面或影片放在這個介面的<b>下面</b>就會透出來。要用 OBS 的「瀏覽器來源」才看得到透明；「視窗擷取」會變成一片底色。右上角可以放一兩行文字，例如遊戲內的時間、地點；留空的那一行不會顯示。</p>
+      <label class="f">行數</label>
+      <div class="seg">${[[1, '一行'], [2, '兩行']].map(([v, t]) => `<button data-sinfo="lines:${v}" class="${s.scene.lines == v ? 'on' : ''}">${t}</button>`).join('')}</div>
+      ${txt('第 1 行', 'scene.line1', '例：1925年10月3日　深夜')}
+      ${s.scene.lines == 2 ? txt('第 2 行', 'scene.line2', '例：阿卡姆・米斯卡托尼克大學') : ''}
+      <label class="f">裝飾</label>
+      <div class="seg">${[['front', '✦ 前面'], ['both', '✦ 前後 ✦'], ['none', '無裝飾']].map(([v, t]) => `<button data-sinfo="deco:${v}" class="${s.scene.deco === v ? 'on' : ''}">${t}</button>`).join('')}</div>
+      <label class="f">字體大小：<span data-show="scene.size">${esc(s.scene.size)}</span>px</label>
+      <input type="range" min="12" max="48" data-path="scene.size" data-num value="${esc(s.scene.size)}" style="width:100%">
     </div></details>
 
     <details data-k="chars" open><summary>🧙 角色（${s.characters.length}）</summary><div class="sec">
@@ -818,7 +828,11 @@ ed.addEventListener('click', e => {
   const t = e.target.closest('button');
   if (!t) return;
   const cs = state.characters;
-  if (t.dataset.sbtab) {
+  if (t.dataset.sinfo) {
+    const [k, v] = t.dataset.sinfo.split(':');
+    state.scene[k] = k === 'lines' ? Number(v) : v;
+    buildEditor(); commit();
+  } else if (t.dataset.sbtab) {
     sbTab = t.dataset.sbtab;
     for (const b of ed.querySelectorAll('[data-sbtab]')) b.classList.toggle('on', b === t);
     for (const p of ed.querySelectorAll('[data-sbpanel]')) p.hidden = p.dataset.sbpanel !== sbTab;
