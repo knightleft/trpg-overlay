@@ -744,7 +744,7 @@ function buildEditor() {
       <input type="range" min="12" max="48" data-path="scene.size" data-num value="${esc(s.scene.size)}" style="width:100%">
     </div></details>
 
-    <details data-k="chars" open><summary>🧙 角色（${s.characters.length}）</summary><div class="sec">
+    <details data-k="chars"><summary>🧙 角色（${s.characters.length}）</summary><div class="sec">
       <p class="hint">每個角色一格空白，給 OBS 疊上 CCFOLIA 的「瀏覽器來源」，HP/MP/SAN 會跟著 CCFOLIA 自動更新。編輯器裡疊著的是預覽，OBS 畫面上不會有。</p>
       ${txt('CCFOLIA 房間網址', 'ccf.room', 'https://ccfolia.com/rooms/…')}
       ${bgControls('角色狀態背景圖', 'charsBg')}
