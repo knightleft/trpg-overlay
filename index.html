@@ -1012,6 +1012,11 @@ function rtcUrl() {
 }
 
 function readImage(file, maxSize = 1280) {
+  // GIF 用原檔（縮小重畫會只剩第一格、動畫消失）
+  if (file.type === 'image/gif') {
+    if (file.size > 1024 * 1024) toast(`GIF 有 ${(file.size / 1024 / 1024).toFixed(1)} MB，OBS 網址可能會太長貼不上，建議改用圖片網址`);
+    return new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(file); });
+  }
   return new Promise(res => {
     const im = new Image();
     im.onload = () => {
