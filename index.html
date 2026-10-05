@@ -266,9 +266,7 @@ let state = load();
 // 舊資料或匯入的 JSON 補齊缺少的欄位
 function fixState(s) {
   if (s.kp?.name === 'KP' && s.kp.sub === 'KEEPER') Object.assign(s.kp, { name: '主持人', sub: 'GAME MASTER' });
-  // 舊版的時間／地點欄位搬到第 1、2 行
-  // 舊版只有一個字體大小，兩行都沿用
-  // 舊版資料搬到新欄位：時間／地點 → 前段標籤＋後段；只有一段文字的版本 → 放在後段
+  // 劇情資訊牌舊版資料搬到新欄位：時間／地點 → 前段標籤＋後段；只有一段文字的版本 → 放在後段
   const sc = s.scene;
   if (sc && sc.b1 === undefined) {
     if (sc.time !== undefined || sc.place !== undefined) Object.assign(sc, { a1: '時間', b1: sc.time || '', a2: '地點', b2: sc.place || '' });
@@ -279,6 +277,11 @@ function fixState(s) {
   for (const k of ['charsBg', 'vtBg', 'ccf', 'scene', 'talk']) s[k] = { ...DEFAULT[k], ...s[k] };
   s.sb = s.sb ? M.normalize(s.sb) : defaultSb();
   if (Array.isArray(s.characters)) s.characters = s.characters.map(c => ({ ccf: '', voice: '', voiceX: s.voice?.x ?? 280, voiceSize: s.voice?.size ?? 90, ...c }));   // 舊版共用的語音頭像設定分給每個角色
+  // 清掉已經拿掉的功能留下的欄位（存檔與 OBS 網址都會變小）
+  delete s.voice;
+  for (const k of ['mode', 'avatars']) delete s.ccf[k];
+  for (const k of ['text', 'bg', 'time', 'place', 'line1', 'line2', 'size', 'size1', 'size2']) delete s.scene[k];
+  if (Array.isArray(s.characters)) for (const c of s.characters) for (const k of ['sub', 'icon', 'avatar', 'hp', 'hpMax', 'mp', 'mpMax', 'san', 'sanMax']) delete c[k];
   return Object.assign(structuredClone(DEFAULT), s);
 }
 function load() {
@@ -481,7 +484,7 @@ function updateObsInfo() {
     if (!el) return;
     const shrink = f.k < 0.995;
     el.classList.toggle('warn', shrink);
-    el.innerHTML = `OBS 瀏覽器來源：寬 <b>${f.w}</b> × 高 <b>${f.h}</b><br>編輯變形 → 位置 <b>${f.x}, ${f.y}</b>　大小 <b>${Math.round(f.w * f.k)} × ${Math.round(f.h * f.k)}</b>`
+    el.innerHTML = `CCFOLIA 瀏覽器來源：寬 <b>${f.w}</b> × 高 <b>${f.h}</b><br>編輯變形 → 位置 <b>${f.x}, ${f.y}</b>　大小 <b>${Math.round(f.w * f.k)} × ${Math.round(f.h * f.k)}</b>`
       + (shrink ? `<br>⚠ 放不下，已縮小成 ${Math.round(f.k * 100)}%。字會變小，建議把「單條寬度」或頭像調小。` : '');
     const vo = ed.querySelector(`[data-voiceobs="${i}"]`), v = voicePos(i);
     if (vo && v) vo.innerHTML = `Reactive 瀏覽器來源：寬 <b>${v.size}</b> × 高 <b>${v.size}</b><br>編輯變形 → 位置 <b>${v.x}, ${v.y}</b>`;
@@ -801,7 +804,7 @@ function charBlock(c, i) {
       <div class="row"><div>${txt('名字（寫進 CSS）', `characters.${i}.name`)}</div><div class="nf"><label class="f">角色顏色</label><input type="color" data-path="characters.${i}.color" value="${esc(c.color)}"></div></div>
       ${txt('CCFOLIA 角色 ID 或棋子網址', `characters.${i}.ccf`, '棋子按右鍵 →「Copy Id (for dev)」')}
       <p class="hint" style="color:#ffb86b;margin:2px 0 0" data-note="${i}"></p>
-      <div class="charbtns"><button class="primary" data-copy="css" data-i="${i}">複製 CSS</button><button data-copy="url" data-i="${i}">複製網址</button></div>
+      <div class="charbtns"><button class="primary" data-copy="css" data-i="${i}">複製 CSS</button><button data-copy="url" data-i="${i}">複製 CCFOLIA 網址</button></div>
       <div class="obsline" data-obs="${i}"></div>
       ${txt('語音：Reactive 單人連結（可不填）', `characters.${i}.voice`, 'https://reactive.fugi.tech/individual/…')}
       <p class="hint" style="margin:2px 0 0" data-voicenote="${i}"></p>
@@ -827,7 +830,10 @@ function buildEditor() {
       <label class="btn">匯入 JSON<input type="file" accept=".json" id="imp" hidden></label>
       <button id="reset">重設範例</button>
     </div>
-    <p class="hint">右邊即時預覽 1920×1080，資料自動存在瀏覽器裡。<b>OBS 瀏覽器來源讀不到這裡的存檔</b>，每次修改後要用下面其中一種方式更新 OBS（瀏覽器來源寬 1920、高 1080）：<br>・<b>複製 OBS 網址</b>：貼到 OBS 瀏覽器來源的網址欄。有上傳圖片（尤其 GIF）時網址會太長，OBS 貼不下。<br>・<b>儲存 OBS 檔案</b>：存成一個 HTML 檔，OBS 瀏覽器來源勾「本機檔案」選這個檔。之後再按一次會直接覆蓋同一個檔，OBS 來源按右鍵「重新整理」就會更新。有上傳圖片時用這個。</p>
+    <p class="hint">右邊是 1920×1080 的即時預覽，資料會自動存在這個瀏覽器裡。<b>OBS 讀不到這裡的存檔，每次改完都要更新 OBS</b>：<br>
+      ・<b>沒有上傳圖片</b>：按「複製 OBS 網址」，貼到 OBS 瀏覽器來源的網址欄。<br>
+      ・<b>有上傳圖片（含 GIF）</b>：網址會太長，改按「儲存 OBS 檔案」，OBS 瀏覽器來源勾「本機檔案」選這個檔。之後再存會覆蓋同一個檔，到 OBS 對來源按右鍵「重新整理」。<br>
+      完整步驟見下方「📡 OBS 設定方式」。</p>
 
     <details data-k="scene"><summary>📜 劇情畫面</summary><div class="sec">
       <p class="hint">16:9 區域是挖空的（只留外框，裡面透明），在 OBS 把圖片、遊戲畫面或影片放在這個介面的<b>下面</b>就會透出來。右上角可以放一到五行「前段＋後段」文字，例如「地點　S市」；整行留空就不顯示，前段留空時只顯示後段。</p>
@@ -851,12 +857,13 @@ function buildEditor() {
 
     <details data-k="sb"><summary>📊 CCFOLIA 狀態條樣式</summary><div class="sec">${sbEditor()}</div></details>
 
-    <details data-k="obs"><summary>📡 CCFOLIA × OBS 設定方式</summary><div class="sec">
+    <details data-k="obs"><summary>📡 OBS 設定方式</summary><div class="sec">
+      <p class="hint">OBS 來源由下到上的順序：<b>劇情畫面的圖片／影片 → 跑團介面 → 各角色的 CCFOLIA → 各角色的 Reactive</b>（對話區、聊天室、Live2D 等也放在跑團介面上面）。</p>
       <ol class="note-ol">
         <li>OBS 的畫布設 1920×1080。介面本身用「瀏覽器來源」，網址貼上「複製 OBS 網址」的內容（或勾「本機檔案」選「儲存 OBS 檔案」存的檔），寬 1920、高 1080，位置 0, 0。</li>
-        <li>每個角色各「新增來源 → 瀏覽器」，網址貼上該角色的「複製網址」，寬高填上面角色區顯示的<b>瀏覽器來源尺寸</b>。</li>
+        <li>每個角色各「新增來源 → 瀏覽器」，網址貼上該角色的「複製 CCFOLIA 網址」，寬高填角色底下顯示的 <b>CCFOLIA 瀏覽器來源</b>尺寸。</li>
         <li>把「自訂 CSS」欄位清空，貼上該角色的「複製 CSS」。</li>
-        <li>角色的來源要放在跑團介面那個瀏覽器來源的<b>上面</b>，右鍵 →「變形 → 編輯變形」，填入顯示的<b>位置</b>與<b>大小</b>，就會剛好落在角色格裡。</li>
+        <li>角色的來源放在跑團介面的<b>上面</b>，右鍵 →「變形 → 編輯變形」，填入顯示的<b>位置</b>與<b>大小</b>，就會剛好落在角色格裡（「邊界框類型」保持「無邊界框」）。</li>
         <li>畫面一片空白時：來源右鍵 →「互動」，登入 CCFOLIA 並進入房間（做過一次就會記住）。</li>
         <li>第二位角色開始請<b>重新「新增來源」</b>建立，不要用「貼上（參照）」，否則全部都會變成同一個角色。</li>
         <li>有語音頭像的角色：再「新增來源 → 瀏覽器」，網址貼「複製 Reactive 網址」，寬高與位置照角色底下的 <b>Reactive 瀏覽器來源</b>數字填。放在該角色 CCFOLIA 來源的<b>上面</b>（不會被狀態條蓋住），兩個來源選起來按右鍵「群組選取的項目」，之後就會一起移動。</li>
@@ -871,7 +878,7 @@ function buildEditor() {
 
     <details data-k="kp"><summary>🐙 主持人${s.kp.show ? "" : "（隱藏中）"}</summary><div class="sec">
       <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer"><input type="checkbox" data-path="kp.show" ${s.kp.show ? "checked" : ""}>在畫面上顯示主持人格子</label>
-      <p class="hint">不勾的時候，角色欄會往下延伸補滿空間。</p>
+      <p class="hint">不勾的時候，左欄的「角色狀態」框會往下延伸補滿空間。</p>
       <div class="row"><div>${txt('名稱', 'kp.name')}</div><div>${txt('副標', 'kp.sub')}</div><div>${txt('圖示', 'kp.icon')}</div></div>
       ${img('主持人頭像（可不填）', 'kp.avatar')}
     </div></details>
@@ -933,6 +940,8 @@ ed.addEventListener('input', e => {
   commit();
   if (p.startsWith('sb.')) sbRefresh();
   if (p === 'ccf.room' || /^characters\.\d+\.(ccf|voice)$/.test(p)) updateCharNotes();
+  const nm = p.match(/^characters\.(\d+)\.name$/);
+  if (nm) ed.querySelectorAll('.char-h span')[nm[1]].textContent = `#${+nm[1] + 1} ${t.value}`;
 });
 ed.addEventListener('click', e => {
   const t = e.target.closest('button');
@@ -959,7 +968,7 @@ ed.addEventListener('click', e => {
     } else if (t.dataset.copy === 'url') {
       const url = charUrl(c);
       if (!url) return toast('需要同時填入房間網址與角色 ID');
-      copyText(url).then(ok => toast(ok ? `已複製「${c.name}」的網址` : '複製失敗'));
+      copyText(url).then(ok => toast(ok ? `已複製「${c.name}」的 CCFOLIA 網址` : '複製失敗'));
     } else {
       const sz = sizeOf(i);
       copyText(charCss(i)).then(ok => toast(ok ? `已複製「${c.name}」的 CSS（來源尺寸 ${sz.w}×${sz.h}）` : '複製失敗'));
@@ -987,7 +996,7 @@ ed.addEventListener('click', e => {
   } else if (t.id === 'exp') {
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' }));
-    a.download = `trpg-${state.title || 'overlay'}.json`; a.click();
+    a.download = `trpg-${String(state.title || 'overlay').replace(/[\\/:*?"<>|]/g, '_').trim() || 'overlay'}.json`; a.click();
   } else if (t.dataset.fit) {
     const [key, fit] = t.dataset.fit.split(':');
     state[key].fit = fit; buildEditor(); commit();
@@ -1022,7 +1031,6 @@ ed.addEventListener('change', e => {
   }
 });
 
-// 上傳圖片時縮小，避免塞爆瀏覽器儲存空間
 /* ---------- 配色 ---------- */
 // 順序同 Realtime Colors 網址：colors=text-background-primary-secondary-accent
 const COLOR_KEYS = [['text', '文字'], ['bg', '背景'], ['pri', '主色<br>框線'], ['sec', '次色<br>角落/標籤'], ['acc', '強調<br>裝飾']];
@@ -1102,6 +1110,7 @@ function rtcUrl() {
   return 'https://www.realtimecolors.com/?colors=' + COLOR_KEYS.map(([k]) => state.theme.colors[k].slice(1)).join('-') + '&fonts=Inter-Inter';
 }
 
+// 上傳圖片時縮小成 webp，避免塞爆瀏覽器儲存空間
 function readImage(file, maxSize = 1280) {
   // GIF 用原檔（縮小重畫會只剩第一格、動畫消失）
   if (file.type === 'image/gif') {
