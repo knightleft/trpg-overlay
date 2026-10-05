@@ -239,8 +239,8 @@ const DEFAULT = {
   title: '迷霧中的低語', subtitle: 'Call of Cthulhu 7th edition',
   hashtags: '#TRPG實況 #CoC7th #微醺染香', twitter: '@senkakira',
   // 劇情畫面右上角的資訊牌：lines 行數（1/2）、deco 裝飾（front 前面 / both 前後 / none 無）、size 字體大小 px
-  // a = 前段（次色）、b = 後段（文字色），1、2 是第幾行；sizeA / sizeB 是前段 / 後段的字體大小
-  scene: { lines: 2, a1: '時間', b1: '1925年10月3日　深夜', a2: '地點', b2: '阿卡姆・米斯卡托尼克大學', deco: 'front', sizeA: 16, sizeB: 22 },
+  // a = 前段（次色）、b = 後段（文字色），1～5 是第幾行（最多 SINFO_MAX 行）；sizeA / sizeB 是前段 / 後段的字體大小
+  scene: { lines: 2, a1: '時間', b1: '1925年10月3日　深夜', a2: '地點', b2: '阿卡姆・米斯卡托尼克大學', a3: '', b3: '', a4: '', b4: '', a5: '', b5: '', deco: 'front', sizeA: 16, sizeB: 22 },
   characters: [
     { name: '艾莉亞', avatar: '', color: '#c084fc', ccf: '' },
     { name: '雷恩', avatar: '', color: '#f87171', ccf: '' },
@@ -336,10 +336,12 @@ function applyPanelBg(st) {
   }
 }
 // 劇情畫面右上角的資訊牌
+const SINFO_MAX = 5;
+const sinfoLines = sc => Array.from({ length: Math.min(SINFO_MAX, Math.max(1, Number(sc.lines) || 1)) }, (_, i) => i + 1);
 function sinfoHtml(sc) {
   const has = v => String(v ?? '').trim() !== '';
   const sa = Number(sc.sizeA) || 16, sb = Number(sc.sizeB) || 22;
-  const rows = (sc.lines == 2 ? [1, 2] : [1]).map(n => [sc['a' + n], sc['b' + n]]).filter(([x, y]) => has(x) || has(y));
+  const rows = sinfoLines(sc).map(n => [sc['a' + n], sc['b' + n]]).filter(([x, y]) => has(x) || has(y));
   const cell = (cls, v, sz) => `<span class="${cls}" style="font-size:${sz}px">${esc(v)}</span>`;
   return `<div class="sinfo" data-deco="${esc(sc.deco)}" style="font-size:${Math.max(sa, sb)}px">${rows.map(([x, y]) =>
     has(x) ? cell('a', x, sa) + cell('b', y, sb) : cell('b solo', y, sb)).join('')}</div>`;
@@ -754,11 +756,11 @@ function buildEditor() {
     <p class="hint">右邊即時預覽 1920×1080，資料自動存在瀏覽器裡。<b>OBS 瀏覽器來源讀不到這裡的存檔</b>：改完後按「複製 OBS 網址」，貼到 OBS 瀏覽器來源的網址欄（寬 1920、高 1080），每次修改都要重新複製貼上一次。</p>
 
     <details data-k="scene"><summary>📜 劇情畫面（16:9 挖空區，可不填）</summary><div class="sec">
-      <p class="hint">16:9 區域是挖空的（只留外框，裡面透明），在 OBS 把圖片、遊戲畫面或影片放在這個介面的<b>下面</b>就會透出來。要用 OBS 的「瀏覽器來源」才看得到透明；「視窗擷取」會變成一片底色。右上角可以放一兩行「前段＋後段」文字，例如「地點　S市」；整行留空就不顯示，前段留空時只顯示後段。</p>
+      <p class="hint">16:9 區域是挖空的（只留外框，裡面透明），在 OBS 把圖片、遊戲畫面或影片放在這個介面的<b>下面</b>就會透出來。要用 OBS 的「瀏覽器來源」才看得到透明；「視窗擷取」會變成一片底色。右上角可以放一到五行「前段＋後段」文字，例如「地點　S市」；整行留空就不顯示，前段留空時只顯示後段。</p>
       <label class="f">行數</label>
-      <div class="seg">${[[1, '一行'], [2, '兩行']].map(([v, t]) => `<button data-sinfo="lines:${v}" class="${s.scene.lines == v ? 'on' : ''}">${t}</button>`).join('')}</div>
-      ${(s.scene.lines == 2 ? [1, 2] : [1]).map(n => `<label class="f">第 ${n} 行（前段：次色｜後段：文字色）</label>
-      <div class="row"><input type="text" data-path="scene.a${n}" value="${esc(s.scene['a' + n])}" placeholder="${n === 1 ? '例：時間' : '例：地點'}" style="flex:0 0 32%"><input type="text" data-path="scene.b${n}" value="${esc(s.scene['b' + n])}" placeholder="${n === 1 ? '例：1925年10月3日　深夜' : '例：S市'}"></div>`).join('')}
+      <div class="seg">${['一行', '兩行', '三行', '四行', '五行'].map((t, i) => `<button data-sinfo="lines:${i + 1}" class="${s.scene.lines == i + 1 ? 'on' : ''}">${t}</button>`).join('')}</div>
+      ${sinfoLines(s.scene).map(n => `<label class="f">第 ${n} 行（前段：次色｜後段：文字色）</label>
+      <div class="row"><input type="text" data-path="scene.a${n}" value="${esc(s.scene['a' + n])}" placeholder="${['例：時間', '例：地點', '例：天氣', '例：章節', '例：目標'][n - 1]}" style="flex:0 0 32%"><input type="text" data-path="scene.b${n}" value="${esc(s.scene['b' + n])}" placeholder="${['例：1925年10月3日　深夜', '例：S市', '例：大雨', '例：第二章', '例：找到失蹤的教授'][n - 1]}"></div>`).join('')}
       ${sizeRange('scene.sizeA', '前段字體大小')}
       ${sizeRange('scene.sizeB', '後段字體大小')}
       <label class="f">裝飾</label>
