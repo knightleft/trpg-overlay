@@ -483,7 +483,7 @@ const frames = [];
 let sizeTimer;
 function previewData(i, css) {
   const statuses = P.SAMPLE_STATUS.slice(0, state.sb.layout.count);
-  return { css, statuses, initiative: 0, avatar: null };   // 頭像用範例圖
+  return { css, statuses, initiative: 12, avatar: null };   // 先攻值、頭像都用範例
 }
 function measureFrame(i) {
   const f = frames[i];
@@ -653,7 +653,7 @@ function sbEditor() {
           ${SR('角落', pos('initiative.corner', [['tl', '左上'], ['tr', '右上'], ['bl', '左下'], ['br', '右下']]))}
           ${SR('大小', sRange('initiative.size', 14, 48, 1, 'px'))}
           ${SR('文字 / 背景', `<span class="row">${sCol('initiative.color')}${sCol('initiative.bg')}</span>`)}`)}`)}
-      <p class="hint">先攻值為 0 時 CCFOLIA 不會顯示數字（預覽也一樣）。</p>
+      <p class="hint">CCFOLIA 的先攻值為 0 時不會顯示數字。預覽固定用範例數字 12。</p>
       ${SG('外側留白')}
       ${SR('留白', sRange('layout.outer', 0, 40, 1, 'px'))}
       <p class="hint">避免光暈或陰影被裁掉，在周圍預留的寬度。</p>`)}
@@ -782,7 +782,7 @@ function buildEditor() {
     <p class="hint">右邊即時預覽 1920×1080，資料自動存在瀏覽器裡。<b>OBS 瀏覽器來源讀不到這裡的存檔</b>，每次修改後要用下面其中一種方式更新 OBS（瀏覽器來源寬 1920、高 1080）：<br>・<b>複製 OBS 網址</b>：貼到 OBS 瀏覽器來源的網址欄。有上傳圖片（尤其 GIF）時網址會太長，OBS 貼不下。<br>・<b>儲存 OBS 檔案</b>：存成一個 HTML 檔，OBS 瀏覽器來源勾「本機檔案」選這個檔。之後再按一次會直接覆蓋同一個檔，OBS 來源按右鍵「重新整理」就會更新。有上傳圖片時用這個。</p>
 
     <details data-k="scene"><summary>📜 劇情畫面（16:9 挖空區，可不填）</summary><div class="sec">
-      <p class="hint">16:9 區域是挖空的（只留外框，裡面透明），在 OBS 把圖片、遊戲畫面或影片放在這個介面的<b>下面</b>就會透出來。要用 OBS 的「瀏覽器來源」才看得到透明；「視窗擷取」會變成一片底色。右上角可以放一到五行「前段＋後段」文字，例如「地點　S市」；整行留空就不顯示，前段留空時只顯示後段。</p>
+      <p class="hint">16:9 區域是挖空的（只留外框，裡面透明），在 OBS 把圖片、遊戲畫面或影片放在這個介面的<b>下面</b>就會透出來。右上角可以放一到五行「前段＋後段」文字，例如「地點　S市」；整行留空就不顯示，前段留空時只顯示後段。</p>
       <label class="f">行數</label>
       <div class="seg">${['一行', '兩行', '三行', '四行', '五行'].map((t, i) => `<button data-sinfo="lines:${i + 1}" class="${s.scene.lines == i + 1 ? 'on' : ''}">${t}</button>`).join('')}</div>
       ${sinfoLines(s.scene).map(n => `<label class="f">第 ${n} 行（前段：次色｜後段：文字色）</label>
@@ -795,7 +795,7 @@ function buildEditor() {
     </div></details>
 
     <details data-k="chars"><summary>🧙 角色（${s.characters.length}）</summary><div class="sec">
-      <p class="hint">每個角色一格空白，給 OBS 疊上 CCFOLIA 的「瀏覽器來源」，HP/MP/SAN 會跟著 CCFOLIA 自動更新。編輯器裡疊著的是預覽，OBS 畫面上不會有。</p>
+      <p class="hint">每個角色一格空白，給 OBS 疊上 CCFOLIA 的「瀏覽器來源」，HP/MP/SAN 會跟著 CCFOLIA 自動更新。右邊預覽格子裡的狀態條只是用範例數值、範例頭像示範樣式，OBS 畫面上只有空格。</p>
       ${txt('CCFOLIA 房間網址', 'ccf.room', 'https://ccfolia.com/rooms/…')}
       ${bgControls('角色狀態背景圖', 'charsBg')}
       ${chars}<button id="addChar">＋ 新增角色</button>
@@ -808,11 +808,11 @@ function buildEditor() {
         <li>OBS 的畫布設 1920×1080。介面本身用「瀏覽器來源」，網址貼上「複製 OBS 網址」的內容（或勾「本機檔案」選「儲存 OBS 檔案」存的檔），寬 1920、高 1080，位置 0, 0。</li>
         <li>每個角色各「新增來源 → 瀏覽器」，網址貼上該角色的「複製網址」，寬高填上面角色區顯示的<b>瀏覽器來源尺寸</b>。</li>
         <li>把「自訂 CSS」欄位清空，貼上該角色的「複製 CSS」。</li>
-        <li>來源放在視窗擷取的上面，右鍵 →「變形 → 編輯變形」，填入顯示的<b>位置</b>與<b>大小</b>，就會剛好落在角色格裡。</li>
+        <li>角色的來源要放在跑團介面那個瀏覽器來源的<b>上面</b>，右鍵 →「變形 → 編輯變形」，填入顯示的<b>位置</b>與<b>大小</b>，就會剛好落在角色格裡。</li>
         <li>畫面一片空白時：來源右鍵 →「互動」，登入 CCFOLIA 並進入房間（做過一次就會記住）。</li>
         <li>第二位角色開始請<b>重新「新增來源」</b>建立，不要用「貼上（參照）」，否則全部都會變成同一個角色。</li>
       </ol>
-      <p class="hint">CCFOLIA 角色「狀態」的排列順序對應第 1、2、3 條的顏色（例：HP → MP → SAN）。聊天室輸入 <code>:HP-3</code>、<code>:SAN=45</code> 之類的指令，OBS 也會立刻更新。改了樣式或人數之後，要重新複製 CSS、核對尺寸與位置。</p>
+      <p class="hint">CCFOLIA 角色「狀態」的排列順序對應第 1、2、3 條的顏色（例：HP → MP → SAN）。聊天室輸入 <code>:HP-3</code>、<code>:SAN=45</code> 之類的指令，OBS 也會立刻更新。改了狀態條樣式或人數之後，要重新複製各角色的 CSS、核對尺寸與位置，跑團介面本身也要重新「複製 OBS 網址」或「儲存 OBS 檔案」（角色格會跟著變）。</p>
     </div></details>
 
     <details data-k="kp"><summary>🐙 主持人${s.kp.show ? "" : "（隱藏中）"}</summary><div class="sec">
