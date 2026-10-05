@@ -103,11 +103,14 @@ body.output #editor{display:none}
   -webkit-mask-composite:xor;mask-composite:exclude}
 /* 輸出畫面背景全透明（OBS 瀏覽器來源才透得過去） */
 html:has(body.output),body.output,body.output #wrap{background:transparent!important}
-.story{position:absolute;left:36px;right:36px;bottom:22px;min-height:150px;padding:24px 40px;font-size:24px;line-height:1.75;
-  background:linear-gradient(180deg,color-mix(in srgb,var(--p1) 88%,transparent),color-mix(in srgb,var(--bg) 92%,transparent));border:1px solid var(--line);
-  box-shadow:inset 0 0 0 5px var(--p2),inset 0 0 0 6px var(--line2);white-space:pre-wrap}
-.story::before{content:"❦";position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-size:26px;color:var(--acc);text-shadow:0 0 12px var(--acc)}
-.story:empty{display:none}
+/* 劇情畫面右上角：遊戲內的時間、地點（空的那行不顯示，兩行都空就整塊隱藏） */
+.sinfo{position:absolute;top:18px;right:18px;max-width:60%;padding:10px 20px 10px 16px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 14px;align-items:baseline;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--p1) 90%,transparent),color-mix(in srgb,var(--bg) 90%,transparent));border:1px solid var(--line);
+  box-shadow:inset 0 0 0 3px var(--p2),inset 0 0 0 4px var(--line2),0 0 14px var(--shadow)}
+.sinfo:empty{display:none}
+.sinfo b{font-family:Cinzel,"Noto Serif TC",serif;font-size:13px;font-weight:600;letter-spacing:2px;color:var(--sec)}
+.sinfo b::before{content:"✦";color:var(--acc);margin-right:6px;font-size:10px;vertical-align:2px}
+.sinfo span{font-size:21px;letter-spacing:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lower{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:14px}
 
 /* 右側 */
@@ -232,7 +235,7 @@ function defaultSb() { const sb = M.defaultState(); M.applyDesign(sb, 'overlay')
 const DEFAULT = {
   title: '迷霧中的低語', subtitle: 'Call of Cthulhu 7th edition',
   hashtags: '#TRPG實況 #CoC7th #微醺染香', twitter: '@senkakira',
-  scene: { text: '' },
+  scene: { time: '1925年10月3日　深夜', place: '阿卡姆・米斯卡托尼克大學' },
   characters: [
     { name: '艾莉亞', avatar: '', color: '#c084fc', ccf: '' },
     { name: '雷恩', avatar: '', color: '#f87171', ccf: '' },
@@ -335,7 +338,7 @@ function render() {
   </div>
   <div class="col">
     <div class="panel" id="p-scene">
-      <div class="story">${esc(s.scene.text)}</div>
+      <div class="sinfo">${[["時間", s.scene.time], ["地點", s.scene.place]].filter(([, v]) => String(v ?? "").trim()).map(([k, v]) => `<b>${k}</b><span>${esc(v)}</span>`).join("")}</div>
     </div>
     <div class="lower">
       <div class="panel"><div class="ph"><div class="t">TRPG 對話區</div><div class="e">DICE &amp; ROLEPLAY</div></div></div>
@@ -726,8 +729,9 @@ function buildEditor() {
     <p class="hint">右邊即時預覽 1920×1080，資料自動存在瀏覽器裡。<b>OBS 瀏覽器來源讀不到這裡的存檔</b>：改完後按「複製 OBS 網址」，貼到 OBS 瀏覽器來源的網址欄（寬 1920、高 1080），每次修改都要重新複製貼上一次。</p>
 
     <details data-k="scene"><summary>📜 劇情畫面（16:9 挖空區，可不填）</summary><div class="sec">
-      <p class="hint">16:9 區域是挖空的（只留外框，裡面透明），在 OBS 把圖片、遊戲畫面或影片放在這個介面的<b>下面</b>就會透出來。要用 OBS 的「瀏覽器來源」才看得到透明；「視窗擷取」會變成一片底色。需要的話可以在這裡放旁白字幕。</p>
-      ${area('劇情文字（留空就不顯示）', 'scene.text', 4)}
+      <p class="hint">16:9 區域是挖空的（只留外框，裡面透明），在 OBS 把圖片、遊戲畫面或影片放在這個介面的<b>下面</b>就會透出來。要用 OBS 的「瀏覽器來源」才看得到透明；「視窗擷取」會變成一片底色。右上角可以顯示遊戲內的時間與地點，留空的那一行不會顯示。</p>
+      ${txt('時間（遊戲內）', 'scene.time', '例：1925年10月3日　深夜')}
+      ${txt('地點', 'scene.place', '例：阿卡姆・米斯卡托尼克大學')}
     </div></details>
 
     <details data-k="chars" open><summary>🧙 角色（${s.characters.length}）</summary><div class="sec">
