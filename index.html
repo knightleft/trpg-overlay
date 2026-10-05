@@ -784,7 +784,7 @@ function buildEditor() {
     </div>
     <p class="hint">右邊即時預覽 1920×1080，資料自動存在瀏覽器裡。<b>OBS 瀏覽器來源讀不到這裡的存檔</b>，每次修改後要用下面其中一種方式更新 OBS（瀏覽器來源寬 1920、高 1080）：<br>・<b>複製 OBS 網址</b>：貼到 OBS 瀏覽器來源的網址欄。有上傳圖片（尤其 GIF）時網址會太長，OBS 貼不下。<br>・<b>儲存 OBS 檔案</b>：存成一個 HTML 檔，OBS 瀏覽器來源勾「本機檔案」選這個檔。之後再按一次會直接覆蓋同一個檔，OBS 來源按右鍵「重新整理」就會更新。有上傳圖片時用這個。</p>
 
-    <details data-k="scene"><summary>📜 劇情畫面（16:9 挖空區，可不填）</summary><div class="sec">
+    <details data-k="scene"><summary>📜 劇情畫面</summary><div class="sec">
       <p class="hint">16:9 區域是挖空的（只留外框，裡面透明），在 OBS 把圖片、遊戲畫面或影片放在這個介面的<b>下面</b>就會透出來。右上角可以放一到五行「前段＋後段」文字，例如「地點　S市」；整行留空就不顯示，前段留空時只顯示後段。</p>
       <label class="f">行數</label>
       <div class="seg">${['一行', '兩行', '三行', '四行', '五行'].map((t, i) => `<button data-sinfo="lines:${i + 1}" class="${s.scene.lines == i + 1 ? 'on' : ''}">${t}</button>`).join('')}</div>
