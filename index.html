@@ -242,10 +242,10 @@ const DEFAULT = {
   // a = 前段（次色）、b = 後段（文字色），1～5 是第幾行（最多 SINFO_MAX 行）；sizeA / sizeB 是前段 / 後段的字體大小
   scene: { lines: 2, a1: '時間', b1: '1925年10月3日　深夜', a2: '地點', b2: '阿卡姆・米斯卡托尼克大學', a3: '', b3: '', a4: '', b4: '', a5: '', b5: '', deco: 'front', sizeA: 16, sizeB: 22 },
   characters: [
-    { name: '艾莉亞', avatar: '', color: '#c084fc', ccf: '' },
-    { name: '雷恩', avatar: '', color: '#f87171', ccf: '' },
-    { name: '莉薇婭', avatar: '', color: '#fb7185', ccf: '' },
-    { name: '凱爾', avatar: '', color: '#60a5fa', ccf: '' },
+    { name: '艾莉亞', color: '#c084fc', ccf: '' },
+    { name: '雷恩', color: '#f87171', ccf: '' },
+    { name: '莉薇婭', color: '#fb7185', ccf: '' },
+    { name: '凱爾', color: '#60a5fa', ccf: '' },
   ],
   // sizes: 編輯器量到的各角色瀏覽器來源尺寸，OBS 輸出畫面靠它排出一樣的角色格
   ccf: { room: '', followTheme: true, sizes: [] },
@@ -455,9 +455,8 @@ function updateObsInfo() {
 const frames = [];
 let sizeTimer;
 function previewData(i, css) {
-  const c = state.characters[i];
   const statuses = P.SAMPLE_STATUS.slice(0, state.sb.layout.count);
-  return { css, statuses, initiative: 0, avatar: c.avatar || null };
+  return { css, statuses, initiative: 0, avatar: null };   // 頭像用範例圖
 }
 function measureFrame(i) {
   const f = frames[i];
@@ -733,7 +732,6 @@ function charBlock(c, i) {
       <p class="hint" style="color:#ffb86b;margin:2px 0 0" data-note="${i}"></p>
       <div class="charbtns"><button class="primary" data-copy="css" data-i="${i}">複製 CSS</button><button data-copy="url" data-i="${i}">複製網址</button></div>
       <div class="obsline" data-obs="${i}"></div>
-      ${img('頭像（只用在預覽）', `characters.${i}.avatar`)}
     </div>`;
 }
 
@@ -886,7 +884,7 @@ ed.addEventListener('click', e => {
   } else if (t.dataset.clear) {
     setPath(t.dataset.clear, ''); buildEditor(); commit();
   } else if (t.id === 'addChar') {
-    cs.push({ name: '新角色', avatar: '', color: '#c4b5fd', ccf: '' });
+    cs.push({ name: '新角色', color: '#c4b5fd', ccf: '' });
     buildEditor(); commit();
   } else if (t.id === 'obsUrl') {
     packState().then(packed => {
