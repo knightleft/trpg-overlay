@@ -164,7 +164,7 @@ html:has(body.output),body.output,body.output #wrap{background:transparent!impor
   border:1px solid var(--line2);background:linear-gradient(90deg,color-mix(in srgb,var(--chip) 60%,transparent),color-mix(in srgb,var(--p2) 50%,transparent))}
 /* 編輯器預覽：疊在畫面上的 CCFOLIA 模擬畫面（OBS 輸出畫面沒有這層） */
 #sbLayer,#voiceLayer{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0;pointer-events:none;overflow:hidden}
-/* 語音：Reactive 的單人頭像，放在角色頭像的位置（CCFOLIA 的頭像會變透明讓它透出來） */
+/* 語音：Reactive 的單人頭像，放在角色格裡（狀態條右邊），位置與大小由「語音頭像」設定調整 */
 #voiceLayer iframe{position:absolute;border:0;background:transparent;overflow:hidden;color-scheme:normal}
 #sbLayer iframe{position:absolute;border:0;background:transparent;transform-origin:0 0;color-scheme:normal}
 body.output #sbLayer{display:none}
@@ -252,8 +252,9 @@ const DEFAULT = {
     { name: '凱爾', color: '#60a5fa', ccf: '' },
   ],
   // sizes: 編輯器量到的各角色瀏覽器來源尺寸，OBS 輸出畫面靠它排出一樣的角色格
-  // avatars: 編輯器量到的各角色頭像在來源裡的位置，輸出畫面靠它擺 Reactive 語音頭像
-  ccf: { room: '', followTheme: true, sizes: [], avatars: [] },
+  ccf: { room: '', followTheme: true, sizes: [] },
+  // 語音頭像（Reactive）在角色格裡的位置：x 是距離角色格左邊的 px，大小 size px，上下置中
+  voice: { x: 280, size: 90 },
   sb: defaultSb(),
   talk: { show: true },   // 雜談區；不顯示時對話區延伸成一整條
   kp: { show: false, name: '主持人', sub: 'GAME MASTER', avatar: '', icon: '🐙' },
@@ -277,7 +278,7 @@ function fixState(s) {
     const size = (sc.lines == 2 ? sc.size2 : sc.size1) ?? sc.size;
     if (size !== undefined) sc.sizeB = size;
   }
-  for (const k of ['charsBg', 'vtBg', 'ccf', 'scene', 'talk']) s[k] = { ...DEFAULT[k], ...s[k] };
+  for (const k of ['charsBg', 'vtBg', 'ccf', 'scene', 'talk', 'voice']) s[k] = { ...DEFAULT[k], ...s[k] };
   s.sb = s.sb ? M.normalize(s.sb) : defaultSb();
   if (Array.isArray(s.characters)) s.characters = s.characters.map(c => ({ ccf: '', voice: '', ...c }));
   return Object.assign(structuredClone(DEFAULT), s);
@@ -462,6 +463,7 @@ function layoutSlots(st) {
     const p = posIn(el), f = fits[i];
     return {
       w: f.w, h: f.h, k: f.k,
+      box: { x: p.x, y: p.y, w: el.offsetWidth, h: el.offsetHeight },   // 角色格外框（語音頭像用）
       x: Math.round(p.x + el.clientLeft + SLOT_PAD + (f.availW - f.w * f.k) / 2),
       y: Math.round(p.y + el.clientTop + SLOT_PAD),
     };
@@ -472,13 +474,7 @@ const charUrl = c => M.characterUrl(state.ccf.room, c.ccf);
 const voiceUrl = c => /^https:\/\/reactive\.fugi\.tech\/\S+$/.test(String(c.voice || '').trim()) ? String(c.voice).trim() : '';
 const charCss = i => {
   const c = state.characters[i];
-  let css = C.build(state.sb, { name: c.name, color: c.color, url: charUrl(c), size: sizeOf(i) });
-  if (voiceUrl(c) && state.sb.avatar.show) css += `
-/* ---------- 語音：頭像位置留給跑團介面裡的 Reactive 語音頭像 ---------- */
-.MuiBadge-root > .MuiAvatar-root { background: transparent !important; }
-.MuiBadge-root .MuiAvatar-root .MuiAvatar-root, .MuiBadge-root .MuiAvatar-img { visibility: hidden !important; }
-`;
-  return css;
+  return C.build(state.sb, { name: c.name, color: c.color, url: charUrl(c), size: sizeOf(i) });
 };
 function updateObsInfo() {
   if (OUTPUT) return;
@@ -505,14 +501,8 @@ function measureFrame(i) {
   const sz = K.measure(f.doc), old = state.ccf.sizes[i];
   f.iframe.style.width = sz.w + 'px';
   f.iframe.style.height = sz.h + 'px';
-  // 頭像外框內側的位置（給 Reactive 語音頭像用）；沒顯示頭像時是 null
-  const av = f.doc.querySelector('.MuiBadge-root > .MuiAvatar-root'), r = av?.getBoundingClientRect();
-  const radius = av ? parseFloat(f.doc.defaultView.getComputedStyle(av).borderTopLeftRadius) || 0 : 0;
-  const avatar = r && r.width > 0 ? { x: Math.round(r.left + av.clientLeft), y: Math.round(r.top + av.clientTop), w: av.clientWidth, h: av.clientHeight, r: Math.max(0, radius - av.clientLeft) } : null;
-  const oldAv = state.ccf.avatars[i] ?? null;
-  if (old && old.w === sz.w && old.h === sz.h && JSON.stringify(oldAv) === JSON.stringify(avatar)) return;
+  if (old && old.w === sz.w && old.h === sz.h) return;
   state.ccf.sizes[i] = sz;
-  state.ccf.avatars[i] = avatar;
   clearTimeout(sizeTimer);
   sizeTimer = setTimeout(commit, 30);
 }
@@ -521,7 +511,6 @@ function syncPreviews() {
   const layer = $('#sbLayer'), n = state.characters.length;
   while (frames.length > n) frames.pop().iframe.remove();
   if (state.ccf.sizes.length > state.characters.length) state.ccf.sizes.length = state.characters.length;
-  if (state.ccf.avatars.length > state.characters.length) state.ccf.avatars.length = state.characters.length;
   for (let i = 0; i < n; i++) {
     let f = frames[i];
     if (!f) {
@@ -554,9 +543,9 @@ function syncVoice() {
   const layer = $('#voiceLayer'), n = state.characters.length;
   while (voiceFrames.length > n) voiceFrames.pop()?.remove();
   for (let i = 0; i < n; i++) {
-    const url = voiceUrl(state.characters[i]), a = state.sb.avatar.show ? state.ccf.avatars[i] : null, s = slotInfo[i];
+    const url = voiceUrl(state.characters[i]), s = slotInfo[i];
     let fr = voiceFrames[i];
-    if (!url || !a || !s) { if (fr) { fr.remove(); voiceFrames[i] = null; } continue; }
+    if (!url || !s) { if (fr) { fr.remove(); voiceFrames[i] = null; } continue; }
     if (!fr) {
       fr = voiceFrames[i] = document.createElement('iframe');
       fr.tabIndex = -1;
@@ -564,7 +553,8 @@ function syncVoice() {
       layer.append(fr);
     }
     if (fr.dataset.src !== url) { fr.dataset.src = url; fr.src = url; }   // 只在網址改變時重新載入
-    Object.assign(fr.style, { left: s.x + a.x * s.k + 'px', top: s.y + a.y * s.k + 'px', width: a.w * s.k + 'px', height: a.h * s.k + 'px', borderRadius: a.r * s.k + 'px' });
+    const size = Number(state.voice.size) || 90, b = s.box;
+    Object.assign(fr.style, { left: b.x + (Number(state.voice.x) || 0) + 'px', top: b.y + (b.h - size) / 2 + 'px', width: size + 'px', height: size + 'px' });
   }
 }
 
@@ -584,6 +574,7 @@ const txt = (label, path, ph = '') => `<label class="f">${label}</label><input t
 const area = (label, path, rows = 6) => `<label class="f">${label}</label><textarea data-path="${path}" rows="${rows}">${esc(getPath(path))}</textarea>`;
 const img = (label, path) => `<label class="f">${label}</label><div class="img-in"><input type="text" data-path="${path}" value="${esc(getPath(path)?.startsWith('data:') ? '(已上傳圖片)' : getPath(path))}" placeholder="貼上圖片網址 https://…"><label class="btn">上傳<input type="file" accept="image/*" data-upload="${path}" hidden></label><button data-clear="${path}">清除</button></div>`;
 const range = (label, path, min = 0, max = 100) => `<label class="f">${label}：<span data-show="${path}">${getPath(path)}</span>%</label><input type="range" min="${min}" max="${max}" data-path="${path}" data-num value="${esc(getPath(path))}" style="width:100%">`;
+const pxRange = (label, path, min, max) => `<label class="f">${label}：<span data-show="${path}">${esc(getPath(path))}</span>px</label><input type="range" min="${min}" max="${max}" data-path="${path}" data-num value="${esc(getPath(path))}" style="width:100%">`;
 const sizeRange = (path, label = '字體大小') => `<label class="f">${label}：<span data-show="${path}">${esc(getPath(path))}</span>px</label><input type="range" min="12" max="48" data-path="${path}" data-num value="${esc(getPath(path))}" style="width:100%">`;
 const bgControls = (label, key) => `${img(label, key + '.img')}
       <label class="f">顯示方式</label>
@@ -843,6 +834,10 @@ function buildEditor() {
     <details data-k="chars"><summary>🧙 角色（${s.characters.length}）</summary><div class="sec">
       <p class="hint">每個角色一格空白，給 OBS 疊上 CCFOLIA 的「瀏覽器來源」，HP/MP/SAN 會跟著 CCFOLIA 自動更新。右邊預覽格子裡的狀態條只是用範例數值、範例頭像示範樣式，OBS 畫面上只有空格。</p>
       ${txt('CCFOLIA 房間網址', 'ccf.room', 'https://ccfolia.com/rooms/…')}
+      <label class="f" style="margin-top:10px;color:var(--ed-text)">🎙️ 語音頭像（Reactive）</label>
+      <p class="hint">有填「Reactive 單人連結」的角色，會在角色格裡顯示語音頭像（上下置中）。所有角色共用這組位置。被狀態條蓋到時，把頭像往右移或調小，或把「狀態條樣式 → 單條寬度」調窄。</p>
+      ${pxRange('左右位置（距離角色格左邊）', 'voice.x', 0, 380)}
+      ${pxRange('大小', 'voice.size', 30, 160)}
       ${bgControls('角色狀態背景圖', 'charsBg')}
       ${chars}<button id="addChar">＋ 新增角色</button>
     </div></details>
@@ -904,8 +899,7 @@ function updateCharNotes() {
     const c = state.characters[el.dataset.voicenote], v = String(c.voice || '').trim();
     el.style.color = '#ffb86b';
     el.textContent = !v ? '' : !voiceUrl(c) ? '要貼 https://reactive.fugi.tech/ 開頭的網址。'
-      : !state.sb.avatar.show ? '狀態條樣式的「顯示頭像」關著，語音頭像沒地方放。請到「📊 CCFOLIA 狀態條樣式 → 版面」打開頭像。'
-      : (el.style.color = '', '說話時這個角色的頭像會換成 Reactive 的語音頭像。記得重新複製這個角色的 CSS。');
+      : (el.style.color = '', '語音頭像會出現在這個角色格裡，位置與大小在上面的「語音頭像」調整。');
   }
   for (const el of ed.querySelectorAll('[data-note]')) {
     const c = state.characters[el.dataset.note];
@@ -930,7 +924,7 @@ ed.addEventListener('input', e => {
   if (p.startsWith('theme.')) $('#rtcLink').href = rtcUrl();
   commit();
   if (p.startsWith('sb.')) sbRefresh();
-  if (p === 'ccf.room' || /^characters\.\d+\.(ccf|voice)$/.test(p) || p === 'sb.avatar.show') updateCharNotes();
+  if (p === 'ccf.room' || /^characters\.\d+\.(ccf|voice)$/.test(p)) updateCharNotes();
 });
 ed.addEventListener('click', e => {
   const t = e.target.closest('button');
