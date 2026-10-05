@@ -115,6 +115,8 @@ html:has(body.output),body.output,body.output #wrap{background:transparent!impor
 .sinfo:is([data-deco=front],[data-deco=both]) :is(.a,.solo)::before{content:"✦";color:var(--acc);margin-right:.45em;font-size:.55em;vertical-align:.25em}
 .sinfo[data-deco=both] .b::after{content:"✦";color:var(--acc);margin-left:.45em;font-size:.55em;vertical-align:.25em}
 .lower{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+/* 雜談區關閉時，對話區延伸成一整條 */
+.lower.solo{grid-template-columns:1fr}
 
 /* 右側 */
 /* VTuber 格：改用強調色＋次色，跟其他欄位區隔 */
@@ -250,6 +252,7 @@ const DEFAULT = {
   // sizes: 編輯器量到的各角色瀏覽器來源尺寸，OBS 輸出畫面靠它排出一樣的角色格
   ccf: { room: '', followTheme: true, sizes: [] },
   sb: defaultSb(),
+  talk: { show: true },   // 雜談區；不顯示時對話區延伸成一整條
   kp: { show: false, name: '主持人', sub: 'GAME MASTER', avatar: '', icon: '🐙' },
   notes: '小鎮的異常氣味\n失蹤的鎮民\n教堂地下室的聲音\n奇怪的符號',
   charsBg: { img: '', opacity: 50, fit: 'contain', zoom: 100, x: 0, y: 0 },
@@ -271,7 +274,7 @@ function fixState(s) {
     const size = (sc.lines == 2 ? sc.size2 : sc.size1) ?? sc.size;
     if (size !== undefined) sc.sizeB = size;
   }
-  for (const k of ['charsBg', 'vtBg', 'ccf', 'scene']) s[k] = { ...DEFAULT[k], ...s[k] };
+  for (const k of ['charsBg', 'vtBg', 'ccf', 'scene', 'talk']) s[k] = { ...DEFAULT[k], ...s[k] };
   s.sb = s.sb ? M.normalize(s.sb) : defaultSb();
   if (Array.isArray(s.characters)) s.characters = s.characters.map(c => ({ ccf: '', ...c }));
   return Object.assign(structuredClone(DEFAULT), s);
@@ -393,9 +396,9 @@ function render() {
     <div class="panel" id="p-scene">
       ${sinfoHtml(s.scene)}
     </div>
-    <div class="lower">
+    <div class="lower${s.talk.show ? '' : ' solo'}">
       <div class="panel"><div class="ph"><div class="t">TRPG 對話區</div><div class="e">DICE &amp; ROLEPLAY</div></div></div>
-      <div class="panel"><div class="ph"><div class="t">雜談區</div><div class="e">FREE TALK</div></div></div>
+      ${s.talk.show ? '<div class="panel"><div class="ph"><div class="t">雜談區</div><div class="e">FREE TALK</div></div></div>' : ''}
     </div>
   </div>
   <div class="col">
@@ -815,6 +818,11 @@ function buildEditor() {
       <p class="hint">CCFOLIA 角色「狀態」的排列順序對應第 1、2、3 條的顏色（例：HP → MP → SAN）。聊天室輸入 <code>:HP-3</code>、<code>:SAN=45</code> 之類的指令，OBS 也會立刻更新。改了狀態條樣式或人數之後，要重新複製各角色的 CSS、核對尺寸與位置，跑團介面本身也要重新「複製 OBS 網址」或「儲存 OBS 檔案」（角色格會跟著變）。</p>
     </div></details>
 
+    <details data-k="talk"><summary>💬 對話區・雜談區${s.talk.show ? '' : '（雜談區隱藏中）'}</summary><div class="sec">
+      <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer"><input type="checkbox" data-path="talk.show" ${s.talk.show ? 'checked' : ''}>在畫面上顯示雜談區</label>
+      <p class="hint">不勾的時候（例如語音團用不到雜談），TRPG 對話區會往右延伸成一整條。兩個區塊都只有標題，內容由 OBS 疊上去。</p>
+    </div></details>
+
     <details data-k="kp"><summary>🐙 主持人${s.kp.show ? "" : "（隱藏中）"}</summary><div class="sec">
       <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer"><input type="checkbox" data-path="kp.show" ${s.kp.show ? "checked" : ""}>在畫面上顯示主持人格子</label>
       <p class="hint">不勾的時候，角色欄會往下延伸補滿空間。</p>
@@ -862,7 +870,7 @@ ed.addEventListener('input', e => {
   if (!p) return;
   if (t.value === '(已上傳圖片)') return;
   setPath(p, t.type === 'checkbox' ? t.checked : 'num' in t.dataset ? (t.value === '' ? '' : Number(t.value)) : t.value);
-  if (p === 'kp.show') buildEditor();
+  if (p === 'kp.show' || p === 'talk.show') buildEditor();
   if (p === 'ccf.followTheme') {
     if (!t.checked) applyThemeColors(state.sb);   // 取消時保留目前看到的顏色
     commit(); buildEditor(); return;
