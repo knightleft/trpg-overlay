@@ -246,15 +246,13 @@ const DEFAULT = {
   // a = 前段（次色）、b = 後段（文字色），1～5 是第幾行（最多 SINFO_MAX 行）；sizeA / sizeB 是前段 / 後段的字體大小
   scene: { lines: 2, a1: '時間', b1: '1925年10月3日　深夜', a2: '地點', b2: '阿卡姆・米斯卡托尼克大學', a3: '', b3: '', a4: '', b4: '', a5: '', b5: '', deco: 'front', sizeA: 16, sizeB: 22 },
   characters: [
-    { name: '艾莉亞', color: '#c084fc', ccf: '' },
-    { name: '雷恩', color: '#f87171', ccf: '' },
-    { name: '莉薇婭', color: '#fb7185', ccf: '' },
-    { name: '凱爾', color: '#60a5fa', ccf: '' },
+    { name: '艾莉亞', color: '#c084fc', ccf: '', voice: '', voiceX: 280, voiceSize: 90 },
+    { name: '雷恩', color: '#f87171', ccf: '', voice: '', voiceX: 280, voiceSize: 90 },
+    { name: '莉薇婭', color: '#fb7185', ccf: '', voice: '', voiceX: 280, voiceSize: 90 },
+    { name: '凱爾', color: '#60a5fa', ccf: '', voice: '', voiceX: 280, voiceSize: 90 },
   ],
   // sizes: 編輯器量到的各角色瀏覽器來源尺寸，OBS 輸出畫面靠它排出一樣的角色格
   ccf: { room: '', followTheme: true, sizes: [] },
-  // 語音頭像（Reactive）在角色格裡的位置：x 是距離角色格左邊的 px，大小 size px，上下置中
-  voice: { x: 280, size: 90 },
   sb: defaultSb(),
   talk: { show: true },   // 雜談區；不顯示時對話區延伸成一整條
   kp: { show: false, name: '主持人', sub: 'GAME MASTER', avatar: '', icon: '🐙' },
@@ -278,9 +276,9 @@ function fixState(s) {
     const size = (sc.lines == 2 ? sc.size2 : sc.size1) ?? sc.size;
     if (size !== undefined) sc.sizeB = size;
   }
-  for (const k of ['charsBg', 'vtBg', 'ccf', 'scene', 'talk', 'voice']) s[k] = { ...DEFAULT[k], ...s[k] };
+  for (const k of ['charsBg', 'vtBg', 'ccf', 'scene', 'talk']) s[k] = { ...DEFAULT[k], ...s[k] };
   s.sb = s.sb ? M.normalize(s.sb) : defaultSb();
-  if (Array.isArray(s.characters)) s.characters = s.characters.map(c => ({ ccf: '', voice: '', ...c }));
+  if (Array.isArray(s.characters)) s.characters = s.characters.map(c => ({ ccf: '', voice: '', voiceX: s.voice?.x ?? 280, voiceSize: s.voice?.size ?? 90, ...c }));   // 舊版共用的語音頭像設定分給每個角色
   return Object.assign(structuredClone(DEFAULT), s);
 }
 function load() {
@@ -336,7 +334,7 @@ async function saveObsFile() {
 async function packState() {
   const o = structuredClone(state);
   delete o.sb;                                              // 輸出畫面用不到狀態條設定
-  o.characters = o.characters.map(c => ({ name: c.name, voice: c.voice || '' })); // 人數與語音連結（ID 只給編輯器用）
+  o.characters = o.characters.map(c => ({ name: c.name, voice: c.voice || '', voiceX: c.voiceX, voiceSize: c.voiceSize })); // 人數與語音頭像（ID 只給編輯器用）
   const stream = new Blob([JSON.stringify(o)]).stream().pipeThrough(new CompressionStream('deflate-raw'));
   const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
   let bin = '';
@@ -553,8 +551,8 @@ function syncVoice() {
       layer.append(fr);
     }
     if (fr.dataset.src !== url) { fr.dataset.src = url; fr.src = url; }   // 只在網址改變時重新載入
-    const size = Number(state.voice.size) || 90, b = s.box;
-    Object.assign(fr.style, { left: b.x + (Number(state.voice.x) || 0) + 'px', top: b.y + (b.h - size) / 2 + 'px', width: size + 'px', height: size + 'px' });
+    const c = state.characters[i], size = Number(c.voiceSize) || 90, b = s.box;
+    Object.assign(fr.style, { left: b.x + (Number(c.voiceX) || 0) + 'px', top: b.y + (b.h - size) / 2 + 'px', width: size + 'px', height: size + 'px' });
   }
 }
 
@@ -796,6 +794,7 @@ function charBlock(c, i) {
       <div class="obsline" data-obs="${i}"></div>
       ${txt('語音：Reactive 單人連結（可不填）', `characters.${i}.voice`, 'https://reactive.fugi.tech/individual/…')}
       <p class="hint" style="margin:2px 0 0" data-voicenote="${i}"></p>
+      ${voiceUrl(c) ? pxRange('語音頭像：左右位置（距離角色格左邊）', `characters.${i}.voiceX`, 0, 380) + pxRange('語音頭像：大小', `characters.${i}.voiceSize`, 30, 160) : ''}
     </div>`;
 }
 
@@ -834,10 +833,6 @@ function buildEditor() {
     <details data-k="chars"><summary>🧙 角色（${s.characters.length}）</summary><div class="sec">
       <p class="hint">每個角色一格空白，給 OBS 疊上 CCFOLIA 的「瀏覽器來源」，HP/MP/SAN 會跟著 CCFOLIA 自動更新。右邊預覽格子裡的狀態條只是用範例數值、範例頭像示範樣式，OBS 畫面上只有空格。</p>
       ${txt('CCFOLIA 房間網址', 'ccf.room', 'https://ccfolia.com/rooms/…')}
-      <label class="f" style="margin-top:10px;color:var(--ed-text)">🎙️ 語音頭像（Reactive）</label>
-      <p class="hint">有填「Reactive 單人連結」的角色，會在角色格裡顯示語音頭像（上下置中）。所有角色共用這組位置。被狀態條蓋到時，把頭像往右移或調小，或把「狀態條樣式 → 單條寬度」調窄。</p>
-      ${pxRange('左右位置（距離角色格左邊）', 'voice.x', 0, 380)}
-      ${pxRange('大小', 'voice.size', 30, 160)}
       ${bgControls('角色狀態背景圖', 'charsBg')}
       ${chars}<button id="addChar">＋ 新增角色</button>
     </div></details>
@@ -899,7 +894,7 @@ function updateCharNotes() {
     const c = state.characters[el.dataset.voicenote], v = String(c.voice || '').trim();
     el.style.color = '#ffb86b';
     el.textContent = !v ? '' : !voiceUrl(c) ? '要貼 https://reactive.fugi.tech/ 開頭的網址。'
-      : (el.style.color = '', '語音頭像會出現在這個角色格裡，位置與大小在上面的「語音頭像」調整。');
+      : (el.style.color = '', '語音頭像會出現在這個角色格裡（上下置中）。被狀態條蓋到時，往右移、調小，或把「狀態條樣式 → 單條寬度」調窄。');
   }
   for (const el of ed.querySelectorAll('[data-note]')) {
     const c = state.characters[el.dataset.note];
@@ -964,7 +959,7 @@ ed.addEventListener('click', e => {
   } else if (t.dataset.clear) {
     setPath(t.dataset.clear, ''); buildEditor(); commit();
   } else if (t.id === 'addChar') {
-    cs.push({ name: '新角色', color: '#c4b5fd', ccf: '', voice: '' });
+    cs.push({ name: '新角色', color: '#c4b5fd', ccf: '', voice: '', voiceX: 280, voiceSize: 90 });
     buildEditor(); commit();
   } else if (t.id === 'obsUrl') {
     obsUrl().then(url => {
@@ -999,7 +994,7 @@ ed.addEventListener('click', e => {
 ed.addEventListener('change', e => {
   const t = e.target;
   // 這些會讓編輯器的列數或提示改變，放開滑桿／輸入完才重建（拖曳中重建會中斷拖曳）
-  if (t.dataset.path === 'sb.layout.count') buildEditor();
+  if (t.dataset.path === 'sb.layout.count' || /^characters\.\d+\.voice$/.test(t.dataset.path || '')) buildEditor();
   if (t.id === 'sbDesign') $('#sbDesignDesc').textContent = P.DESIGNS[t.value]?.desc || '';
   if (t.dataset.upload && t.files[0]) {
     readImage(t.files[0]).then(url => { setPath(t.dataset.upload, url); buildEditor(); commit(); });
