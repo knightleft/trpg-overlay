@@ -1,0 +1,1001 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TRPG 跑團介面產生器</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Noto+Serif+TC:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ed-bg:#14111c; --ed-panel:#1d1828; --ed-line:#342b46; --ed-text:#e6def5; --ed-dim:#9a8fb0; --ed-acc:#9b6cf0;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#0b0910;color:var(--ed-text);font-family:"Noto Serif TC","Microsoft JhengHei",serif}
+#app{display:flex;height:100vh}
+/* ================= 編輯器 ================= */
+#editor{width:420px;flex:none;overflow-y:auto;background:var(--ed-bg);border-right:1px solid var(--ed-line);padding:12px 14px 40px;font-family:"Microsoft JhengHei",sans-serif;font-size:13px}
+#editor h1{font-size:17px;margin:4px 0 10px;letter-spacing:1px}
+.toolbar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+button,.btn{background:#2a2238;color:var(--ed-text);border:1px solid var(--ed-line);border-radius:6px;padding:5px 10px;font:inherit;cursor:pointer}
+button:hover,.btn:hover{border-color:var(--ed-acc)}
+button.primary{background:var(--ed-acc);border-color:var(--ed-acc);color:#fff}
+details{background:var(--ed-panel);border:1px solid var(--ed-line);border-radius:8px;margin-bottom:8px}
+summary{padding:8px 10px;cursor:pointer;font-weight:bold;user-select:none}
+.sec{padding:4px 10px 10px}
+label.f{display:block;margin:6px 0 2px;color:var(--ed-dim);font-size:12px}
+input[type=text],input[type=number],textarea,select{width:100%;background:#0f0c16;color:var(--ed-text);border:1px solid var(--ed-line);border-radius:5px;padding:5px 7px;font:inherit}
+input[type=color]{width:44px;height:28px;border:none;background:none;padding:0}
+textarea{resize:vertical;min-height:80px;line-height:1.5}
+.row{display:flex;gap:6px;align-items:center}
+.row>*{flex:1;min-width:0}
+.row>.nf{flex:none}
+.img-in{display:flex;gap:4px}
+.img-in input{flex:1}
+.img-in .btn{flex:none;padding:5px 8px;font-size:12px}
+.char{border:1px solid var(--ed-line);border-radius:7px;padding:6px 8px 8px;margin:8px 0;background:#18131f}
+.char-h{display:flex;align-items:center;gap:4px;font-weight:bold}
+.char-h span{flex:1}
+.char-h button{padding:2px 7px;font-size:12px}
+.hint{color:var(--ed-dim);font-size:11.5px;line-height:1.5;margin:4px 0}
+.hint code{background:#0f0c16;padding:0 4px;border-radius:3px;color:#c9b6f5}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#3a2456;color:#fff;padding:8px 16px;border-radius:8px;opacity:0;transition:.3s;pointer-events:none;z-index:99;font-family:sans-serif;font-size:13px}
+#toast.show{opacity:1}
+
+/* ================= 預覽區 ================= */
+#wrap{flex:1;position:relative;overflow:hidden;background:#050407}
+#stage{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0}
+body.output #editor{display:none}
+
+/* ================= 跑團畫面 ================= */
+#stage{
+  /* 基礎 5 色由 JS 設定（對應 Realtime Colors：text / background / primary / secondary / accent） */
+  --text:#ece6f6; --bg:#0b0910; --pri:#bea0e6; --sec:#c9a96e; --acc:#8b5cf6;
+  --hp:#e5485d; --mp:#5b8cf0; --san:#4fd394; --shadow:rgba(0,0,0,.6);
+  --p1:color-mix(in srgb,var(--bg) 90%,var(--pri) 10%);
+  --p2:color-mix(in srgb,var(--bg) 96%,var(--pri) 4%);
+  --chip:color-mix(in srgb,var(--bg) 78%,var(--pri) 22%);
+  --line:color-mix(in srgb,var(--pri) 42%,transparent);
+  --line2:color-mix(in srgb,var(--pri) 20%,transparent);
+  --dim:color-mix(in srgb,var(--text) 62%,var(--bg));
+  --soft:color-mix(in srgb,var(--text) 86%,var(--bg));
+  color:var(--text);font-family:"Noto Serif TC",serif;
+  display:grid;padding:16px;gap:14px;
+  grid-template-columns:400px 1fr 400px;grid-template-rows:1fr 100px;
+}
+#stage[data-mode=light]{--hp:#c8283f;--mp:#2f5fd0;--san:#13915a;--shadow:rgba(60,40,90,.16)}
+.col{display:flex;flex-direction:column;gap:14px;min-height:0}
+.panel{position:relative;background:linear-gradient(180deg,var(--p1),var(--p2));border:1px solid var(--line);
+  box-shadow:inset 0 0 0 4px var(--p2),inset 0 0 0 5px var(--line2),0 0 18px var(--shadow);min-height:0;overflow:hidden}
+.panel::before,.panel::after{content:"";position:absolute;width:22px;height:22px;border:2px solid var(--sec);opacity:.6;pointer-events:none;z-index:3}
+.panel::before{left:3px;top:3px;border-right:none;border-bottom:none}
+.panel::after{right:3px;bottom:3px;border-left:none;border-top:none}
+.ph{text-align:center;padding:12px 0 6px;position:relative}
+.ph .t{font-size:22px;letter-spacing:3px;font-weight:600}
+.ph .e{font-family:Cinzel,serif;font-size:11px;letter-spacing:3px;color:var(--dim);margin-top:2px}
+.ph::after{content:"";display:block;margin:6px auto 0;width:70%;height:1px;background:linear-gradient(90deg,transparent,var(--line),transparent)}
+.ph .t::before,.ph .t::after{content:"✦";color:var(--acc);font-size:12px;margin:0 12px;vertical-align:middle;opacity:.85}
+
+/* 角色 */
+/* 可自訂背景圖的欄位（角色狀態、VTuber 區） */
+.panel-bg{position:absolute;inset:0;background-position:center;background-size:cover;background-repeat:no-repeat;transform-origin:center;pointer-events:none;z-index:0}
+#p-chars>.ph,#chars{position:relative;z-index:1}
+#p-chars{flex:1;display:flex;flex-direction:column}
+#chars{flex:1;justify-content:flex-start;display:flex;flex-direction:column;gap:8px;padding:4px 10px 10px;min-height:0}
+
+/* 主持人 */
+#p-kp{height:120px;flex:none;display:flex;align-items:center;gap:18px;padding:0 24px;
+  background:radial-gradient(circle at 80% 50%,color-mix(in srgb,var(--acc) 18%,transparent),transparent 60%),linear-gradient(180deg,var(--p1),var(--p2))}
+#p-kp .kav{flex:none;width:80px;height:80px;border-radius:50%;background:var(--chip) center/cover no-repeat;border:2px solid var(--sec);display:grid;place-items:center;font-size:40px;box-shadow:0 0 18px color-mix(in srgb,var(--acc) 55%,transparent)}
+#p-kp .kn{font-size:28px;font-family:Cinzel,"Noto Serif TC",serif}
+#p-kp .ks{font-family:Cinzel,serif;letter-spacing:3px;color:var(--dim);font-size:13px}
+
+/* 劇情 */
+/* 劇情畫面挖空：只留外框，裡面透明，OBS 放在下面的圖片／畫面會透出來 */
+#p-scene{flex:none;aspect-ratio:16/9;background:transparent}
+/* 整體底色畫在 ::before，並用遮罩把劇情畫面的位置挖掉（--hx/--hy/--hw/--hh 由 JS 依版面設定） */
+#stage::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
+  background:radial-gradient(ellipse at 50% 40%,color-mix(in srgb,var(--bg) 86%,var(--pri) 14%) 0%,var(--bg) 70%);
+  -webkit-mask-image:linear-gradient(#000,#000),linear-gradient(#000,#000);mask-image:linear-gradient(#000,#000),linear-gradient(#000,#000);
+  -webkit-mask-size:100% 100%,var(--hw,0px) var(--hh,0px);mask-size:100% 100%,var(--hw,0px) var(--hh,0px);
+  -webkit-mask-position:0 0,var(--hx,0px) var(--hy,0px);mask-position:0 0,var(--hx,0px) var(--hy,0px);
+  -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+  -webkit-mask-composite:xor;mask-composite:exclude}
+/* 輸出畫面背景全透明（OBS 瀏覽器來源才透得過去） */
+html:has(body.output),body.output,body.output #wrap{background:transparent!important}
+.story{position:absolute;left:36px;right:36px;bottom:22px;min-height:150px;padding:24px 40px;font-size:24px;line-height:1.75;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--p1) 88%,transparent),color-mix(in srgb,var(--bg) 92%,transparent));border:1px solid var(--line);
+  box-shadow:inset 0 0 0 5px var(--p2),inset 0 0 0 6px var(--line2);white-space:pre-wrap}
+.story::before{content:"❦";position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-size:26px;color:var(--acc);text-shadow:0 0 12px var(--acc)}
+.story:empty{display:none}
+.lower{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+
+/* 右側 */
+/* VTuber 格：改用強調色＋次色，跟其他欄位區隔 */
+#p-vt{height:420px;flex:none;border-color:color-mix(in srgb,var(--sec) 75%,transparent);
+  background:radial-gradient(ellipse at 50% 35%,color-mix(in srgb,var(--acc) 26%,transparent),transparent 72%),
+    linear-gradient(180deg,color-mix(in srgb,var(--bg) 78%,var(--acc) 22%),color-mix(in srgb,var(--bg) 90%,var(--sec) 10%));
+  box-shadow:inset 0 0 0 4px color-mix(in srgb,var(--bg) 85%,var(--acc) 15%),inset 0 0 0 5px color-mix(in srgb,var(--sec) 50%,transparent),
+    0 0 26px color-mix(in srgb,var(--acc) 40%,transparent)}
+#p-vt::before,#p-vt::after{width:34px;height:34px;border-color:var(--acc);opacity:.95}
+/* VTuber 框頂部的自由文字，避免擋到 Live2D */
+#p-tw{position:absolute;left:50%;top:16px;transform:translateX(-50%);z-index:4;display:flex;align-items:center;gap:14px;max-width:calc(100% - 40px);
+  padding:8px 26px;border:1px solid var(--sec);border-radius:30px;background:color-mix(in srgb,var(--bg) 82%,transparent);box-shadow:0 0 16px color-mix(in srgb,var(--acc) 35%,transparent)}
+#p-tw .tw{font-size:19px;color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#p-chat{flex:1}
+#p-notes{height:220px;flex:none}
+#notes{padding:2px 28px;font-size:18px;line-height:1.9}
+#notes div::before{content:"・";color:var(--acc)}
+
+/* 底部 */
+#bar{grid-column:1/-1;display:flex;align-items:center;gap:26px;padding:0 30px}
+.badge{flex:none;font-family:Cinzel,serif;font-size:15px;letter-spacing:2px;padding:8px 26px;text-align:center;line-height:1.25;
+  border:1px solid var(--sec);clip-path:polygon(12px 0,calc(100% - 12px) 0,100% 50%,calc(100% - 12px) 100%,12px 100%,0 50%);background:linear-gradient(180deg,var(--chip),var(--p2))}
+#bar .ttl{font-size:32px;font-weight:700;letter-spacing:3px;line-height:1.1}
+#bar .stl{font-size:16px;color:var(--dim);font-family:Cinzel,"Noto Serif TC",serif}
+#bar .tags{display:flex;gap:28px;font-size:18px;color:var(--soft)}
+#bar .sp{flex:1}
+#bar .sp-r{flex:.3}
+/* 時間由 OBS 疊上，這裡只留空位 */
+#bar .time-slot{flex:none;width:180px}
+
+/* 編輯器：配色區 */
+.swatches{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:4px}
+.swatches label{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:var(--ed-dim);text-align:center}
+.swatches input[type=color]{width:100%;height:32px}
+.seg{display:flex;margin-top:2px}
+.seg button{flex:1;border-radius:0}
+.seg button:first-child{border-radius:6px 0 0 6px}
+.seg button:last-child{border-radius:0 6px 6px 0}
+.seg button.on{background:var(--ed-acc);border-color:var(--ed-acc);color:#fff}
+[hidden]{display:none!important}
+
+/* ================= CCFOLIA 狀態條 ================= */
+/* 角色格（OBS 疊 CCFOLIA 瀏覽器來源的位置） */
+.slot{flex:none;box-sizing:border-box;padding:6px;position:relative;
+  border:1px solid var(--line2);background:linear-gradient(90deg,color-mix(in srgb,var(--chip) 60%,transparent),color-mix(in srgb,var(--p2) 50%,transparent))}
+/* 編輯器預覽：疊在畫面上的 CCFOLIA 模擬畫面（OBS 輸出畫面沒有這層） */
+#sbLayer{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0;pointer-events:none;overflow:hidden}
+#sbLayer iframe{position:absolute;border:0;background:transparent;transform-origin:0 0;color-scheme:normal}
+body.output #sbLayer{display:none}
+/* 編輯器：狀態條設定 */
+.sb-tabs{display:flex;gap:2px;border-bottom:1px solid var(--ed-line);margin:8px 0 2px}
+.sb-tabs button{flex:1;border:0;border-bottom:2px solid transparent;border-radius:0;background:none;color:var(--ed-dim);padding:6px 2px;white-space:nowrap}
+.sb-tabs button.on{color:var(--ed-text);border-bottom-color:var(--ed-acc);font-weight:bold}
+.sgroup{color:var(--ed-dim);font-size:11px;letter-spacing:.08em;margin:12px 0 0;padding-top:8px;border-top:1px solid var(--ed-line)}
+.sr{display:grid;grid-template-columns:88px minmax(0,1fr);gap:8px;align-items:center;margin-top:7px}
+.sr>.sl{color:var(--ed-dim);font-size:12px}
+.wv{display:grid;grid-template-columns:minmax(0,1fr) 54px;gap:6px;align-items:center}
+.ca{display:grid;grid-template-columns:44px minmax(0,1fr) 40px;gap:6px;align-items:center}
+.wv output,.ca output{color:var(--ed-dim);text-align:right;font-size:12px;font-variant-numeric:tabular-nums}
+#editor input[type=range]{width:100%;accent-color:var(--ed-acc)}
+.ck{display:flex;align-items:center;gap:6px;cursor:pointer}
+.cks{display:grid;gap:4px}
+.pcf{display:flex;gap:4px}
+.pcf input{flex:1;min-width:0}
+.pcf button{flex:none;padding:4px 8px;font-size:12px}
+.sb-bar{display:grid;grid-template-columns:16px minmax(0,1fr) 30px 30px 76px 16px;gap:4px;align-items:center;margin-top:4px}
+.sb-bar input[type=color]{width:100%;height:26px}
+.sb-bar.head{color:var(--ed-dim);font-size:11px}
+.sb-deco{border:1px solid var(--ed-line);border-radius:6px;padding:6px 8px;margin-top:6px}
+.sb-deco>.ck{font-weight:bold}
+.sb-deco>.ck small{color:var(--ed-dim);font-weight:normal}
+.obsline{font-size:11.5px;color:#c9b6f5;margin-top:6px;line-height:1.6}
+.obsline.warn{color:#ffb86b}
+.charbtns{display:flex;gap:4px;margin-top:6px}
+.charbtns button{padding:3px 9px;font-size:12px}
+.note-ol{margin:4px 0;padding-left:1.3em;color:var(--ed-dim);font-size:11.5px;line-height:1.7}
+.note-ol b{color:var(--ed-text)}
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="editor"></aside>
+  <main id="wrap"><div id="stage"></div><div id="sbLayer"></div></main>
+</div>
+<div id="toast"></div>
+
+<!-- CCFOLIA 狀態條：沿用 scTool（shiki365「ステータスバーメーカー」繁中版，MIT License）的核心模組 -->
+<script src="statusbar/presets.v1.js"></script>
+<script src="statusbar/shapes.v1.js"></script>
+<script src="statusbar/model.v1.js"></script>
+<script src="statusbar/deco.v1.js"></script>
+<script src="statusbar/css.v1.js"></script>
+<script src="statusbar/mock.v1.js"></script>
+<script src="statusbar/pcfonts.v1.js"></script>
+<script>
+const KEY = 'trpg-overlay-v1';
+const OUTPUT = new URLSearchParams(location.search).get('view') === 'output';
+// OBS 瀏覽器來源讀不到 Chrome 的存檔，所以設定直接壓縮編在網址 #s= 後面（「複製 OBS 網址」產生）
+const PACKED = OUTPUT && location.hash.startsWith('#s=') ? location.hash.slice(3) : '';
+if (OUTPUT) document.body.classList.add('output');
+const bc = 'BroadcastChannel' in window ? new BroadcastChannel(KEY) : null;
+const P = window.BarPresets, M = window.BarModel, C = window.BarCss, K = window.BarMock;
+
+// 跑團介面用的狀態條範本，排在範本清單第一個
+const STAT_COLORS = { dark: { hp: '#e5485d', mp: '#5b8cf0', san: '#4fd394' }, light: { hp: '#c8283f', mp: '#2f5fd0', san: '#13915a' } };
+P.DESIGNS = {
+  overlay: {
+    label: '跑團介面風（預設）', desc: '配合這個跑團介面：頭像在左、名字在狀態條上方、切角狀態條，寬度剛好放進左欄的角色格。勾選「顏色跟隨介面配色」時會自動換色。',
+    layout: { width: 240, height: 16, gap: 8, textLayout: 'side', labelW: 44, valueW: 74, textGap: 6, outer: 8 },
+    avatar: { show: true, pos: 'left', w: 92, h: 92, radius: 6, borderW: 1, useCharColor: true, fit: 'top', gap: 10 },
+    initiative: { show: true, size: 22, corner: 'tl' },
+    bar: { shape: 'chamfer', cut: 5, borderW: 1, borderAlpha: 0.5, track: 'dark', trackAlpha: 0.7, fill: 'vgrad', shadow: 0.3 },
+    colors: [['#e5485d', '#7e2733', 'heart'], ['#5b8cf0', '#324d84', 'sparkle'], ['#4fd394', '#2b7451', 'eye'], ...P.BASE_LOOK.colors.slice(3).map(c => [c.c1, c.c2, c.icon])].map(([c1, c2, icon]) => ({ c1, c2, icon })),
+    text: { labelFont: 'cinzel', valueFont: 'cinzel', weight: 600, labelSize: 14, valueSize: 18, maxSize: 12, spacing: 0.04, labelByBar: true, outline: 'shadow' },
+    name: { pos: 'barsTop', style: 'text', font: 'notoserif', weight: 700, size: 20, gap: 4 },
+  },
+  ...P.DESIGNS,
+};
+function defaultSb() { const sb = M.defaultState(); M.applyDesign(sb, 'overlay'); return sb; }
+
+const DEFAULT = {
+  title: '迷霧中的低語', subtitle: 'Call of Cthulhu 7th edition',
+  hashtags: '#TRPG實況 #CoC7th #LunariaLive', twitter: '@Lunaria_vtuber',
+  scene: { text: '' },
+  characters: [
+    { name: '艾莉亞', avatar: '', color: '#c084fc', ccf: '' },
+    { name: '雷恩', avatar: '', color: '#f87171', ccf: '' },
+    { name: '莉薇婭', avatar: '', color: '#fb7185', ccf: '' },
+    { name: '凱爾', avatar: '', color: '#60a5fa', ccf: '' },
+  ],
+  // sizes: 編輯器量到的各角色瀏覽器來源尺寸，OBS 輸出畫面靠它排出一樣的角色格
+  ccf: { room: '', followTheme: true, sizes: [] },
+  sb: defaultSb(),
+  kp: { show: false, name: '主持人', sub: 'GAME MASTER', avatar: '', icon: '🐙' },
+  notes: '小鎮的異常氣味\n失蹤的鎮民\n教堂地下室的聲音\n奇怪的符號',
+  charsBg: { img: '', opacity: 50, fit: 'contain', zoom: 100, x: 0, y: 0 },
+  vtBg: { img: '', opacity: 50, fit: 'contain', zoom: 100, x: 0, y: 0 },
+  theme: { mode: 'dark', colors: { text: '#ece6f6', bg: '#0b0910', pri: '#bea0e6', sec: '#c9a96e', acc: '#8b5cf6' } },
+};
+
+let state = load();
+// 舊資料或匯入的 JSON 補齊缺少的欄位
+function fixState(s) {
+  if (s.kp?.name === 'KP' && s.kp.sub === 'KEEPER') Object.assign(s.kp, { name: '主持人', sub: 'GAME MASTER' });
+  for (const k of ['charsBg', 'vtBg', 'ccf']) s[k] = { ...DEFAULT[k], ...s[k] };
+  s.sb = s.sb ? M.normalize(s.sb) : defaultSb();
+  if (Array.isArray(s.characters)) s.characters = s.characters.map(c => ({ ccf: '', ...c }));
+  return Object.assign(structuredClone(DEFAULT), s);
+}
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem(KEY));
+    if (s) return fixState(s);
+  } catch (e) {}
+  return structuredClone(DEFAULT);
+}
+let saveTimer;
+function commit() {
+  if (state.ccf.followTheme) applyThemeColors(state.sb);
+  render();
+  if (bc) bc.postMessage(state);
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); }
+    catch (e) { toast('儲存失敗：上傳的圖片太大，建議改用圖片網址'); }
+  }, 300);
+}
+// 網址帶設定時只照網址顯示，不跟瀏覽器存檔同步
+if (bc && !PACKED) bc.onmessage = e => { state = e.data; render(); if (!OUTPUT) buildEditor(); };
+if (!PACKED) window.addEventListener('storage', e => { if (e.key === KEY) { state = load(); render(); } });
+
+/* ---------- 設定 ⇄ 網址 ---------- */
+async function packState() {
+  const o = structuredClone(state);
+  delete o.sb;                                              // 輸出畫面用不到狀態條設定
+  o.characters = o.characters.map(c => ({ name: c.name })); // 只需要人數（頭像、ID 只給編輯器用）
+  const stream = new Blob([JSON.stringify(o)]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+  const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+async function unpackState(text) {
+  const bin = atob(text.replace(/-/g, '+').replace(/_/g, '/'));
+  const bytes = Uint8Array.from(bin, ch => ch.charCodeAt(0));
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  return JSON.parse(await new Response(stream).text());
+}
+
+/* ---------- 工具 ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const bg = u => u ? `background-image:url("${String(u).replace(/["\\\n]/g, encodeURIComponent)}")` : '';
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 2500); }
+function getPath(p) { return p.split('.').reduce((o, k) => o?.[k], state); }
+function setPath(p, v) { const ks = p.split('.'); const last = ks.pop(); ks.reduce((o, k) => o[k], state)[last] = v; }
+
+/* ---------- 渲染畫面 ---------- */
+const panelBg = key => state[key]?.img ? `<div class="panel-bg" data-bg="${key}"></div>` : '';
+function applyPanelBg(st) {
+  for (const el of st.querySelectorAll('.panel-bg')) {
+    const b = state[el.dataset.bg];
+    el.style.backgroundImage = `url(${JSON.stringify(b.img)})`;
+    el.style.backgroundSize = b.fit === 'cover' ? 'cover' : 'contain';
+    el.style.opacity = Math.max(0, Math.min(100, Number(b.opacity) || 0)) / 100;
+    el.style.transform = `translate(${Number(b.x) || 0}%, ${Number(b.y) || 0}%) scale(${(Number(b.zoom) || 100) / 100})`;
+  }
+}
+function render() {
+  const s = state;
+  const st = $('#stage');
+  applyTheme(st);
+
+  // 角色格留空，給 OBS 疊 CCFOLIA 瀏覽器來源
+  const charsHtml = `<div id="chars">${s.characters.map((c, i) => `<div class="slot" data-i="${i}"></div>`).join('')}</div>`;
+
+  const notesHtml = s.notes.split('\n').filter(l => l.trim()).slice(0, 5).map(l => `<div>${esc(l)}</div>`).join('');
+  const tags = s.hashtags.split(/\s+/).filter(Boolean).map(t => `<span>${esc(t)}</span>`).join('');
+
+  st.innerHTML = `
+  <div class="col">
+    <div class="panel" id="p-chars">${panelBg('charsBg')}<div class="ph"><div class="t">角色狀態</div><div class="e">CHARACTERS</div></div>${charsHtml}</div>
+    ${s.kp.show ? `<div class="panel" id="p-kp"><div class="kav" style='${bg(s.kp.avatar)}'>${s.kp.avatar ? '' : esc(s.kp.icon)}</div><div><div class="kn">${esc(s.kp.name)}</div><div class="ks">${esc(s.kp.sub)}</div></div></div>` : ""}
+  </div>
+  <div class="col">
+    <div class="panel" id="p-scene">
+      <div class="story">${esc(s.scene.text)}</div>
+    </div>
+    <div class="lower">
+      <div class="panel"><div class="ph"><div class="t">TRPG 對話區</div><div class="e">DICE &amp; ROLEPLAY</div></div></div>
+      <div class="panel"><div class="ph"><div class="t">雜談區</div><div class="e">FREE TALK</div></div></div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="panel" id="p-vt">${panelBg('vtBg')}${s.twitter ? `<div id="p-tw"><div class="tw">${esc(s.twitter)}</div></div>` : ""}</div>
+    <div class="panel" id="p-chat"><div class="ph"><div class="t">實況聊天室</div><div class="e">LIVE CHAT</div></div></div>
+    <div class="panel" id="p-notes"><div class="ph"><div class="t">劇情筆記</div><div class="e">NOTE</div></div><div id="notes">${notesHtml}</div></div>
+  </div>
+  <div class="panel" id="bar">
+    <div class="badge">TODAY'S<br>TITLE</div>
+    <div><div class="ttl">${esc(s.title)}</div><div class="stl">${esc(s.subtitle)}</div></div>
+    <div class="sp"></div>
+    <div class="badge">HASHTAG</div><div class="tags">${tags}</div>
+    <div class="sp sp-r"></div>
+    <div class="time-slot"></div>
+  </div>`;
+  applyPanelBg(st);
+  const hole = st.querySelector('#p-scene');
+  for (const [k, v] of [['hx', hole.offsetLeft], ['hy', hole.offsetTop], ['hw', hole.offsetWidth], ['hh', hole.offsetHeight]]) st.style.setProperty('--' + k, v + 'px');
+  layoutSlots(st);
+  syncPreviews();
+}
+
+/* ---------- CCFOLIA 角色格 ---------- */
+// slotInfo[i] = OBS 上該角色瀏覽器來源的擺法（1920×1080 座標）：來源尺寸 w×h、縮放 k、左上角 x,y
+let slotInfo = [];
+const SLOT_PAD = 6, FALLBACK_SIZE = { w: 358, h: 127 };
+function sizeOf(i) {
+  const known = state.ccf.sizes.filter(Boolean);
+  return state.ccf.sizes[i] || known[0] || FALLBACK_SIZE;
+}
+function layoutSlots(st) {
+  slotInfo = [];
+  const box = st.querySelector('#chars');
+  if (!box) return;
+  const slots = [...box.children], n = slots.length;
+  if (!n) return;
+  const cs = getComputedStyle(box);
+  const gap = parseFloat(cs.rowGap) || 0;
+  const innerH = box.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+  const maxH = (innerH - gap * (n - 1)) / n - SLOT_PAD * 2 - 2;
+  const fits = slots.map((el, i) => {
+    const sz = sizeOf(i), availW = el.clientWidth - SLOT_PAD * 2;
+    const k = Math.min(1, availW / sz.w, maxH / sz.h);
+    el.style.height = `${sz.h * k + SLOT_PAD * 2 + 2}px`;
+    return { ...sz, k, availW };
+  });
+  // 高度都定好之後再量位置（用版面座標，不受預覽縮放影響）
+  const posIn = el => {
+    let x = 0, y = 0;
+    for (; el && el !== st; el = el.offsetParent) {
+      x += el.offsetLeft; y += el.offsetTop;
+      if (el.offsetParent && el.offsetParent !== st) { x += el.offsetParent.clientLeft; y += el.offsetParent.clientTop; }
+    }
+    return { x, y };
+  };
+  slotInfo = slots.map((el, i) => {
+    const p = posIn(el), f = fits[i];
+    return {
+      w: f.w, h: f.h, k: f.k,
+      x: Math.round(p.x + el.clientLeft + SLOT_PAD + (f.availW - f.w * f.k) / 2),
+      y: Math.round(p.y + el.clientTop + SLOT_PAD),
+    };
+  });
+  updateObsInfo();
+}
+const charUrl = c => M.characterUrl(state.ccf.room, c.ccf);
+const charCss = i => {
+  const c = state.characters[i];
+  return C.build(state.sb, { name: c.name, color: c.color, url: charUrl(c), size: sizeOf(i) });
+};
+function updateObsInfo() {
+  if (OUTPUT) return;
+  slotInfo.forEach((f, i) => {
+    const el = ed.querySelector(`[data-obs="${i}"]`);
+    if (!el) return;
+    const shrink = f.k < 0.995;
+    el.classList.toggle('warn', shrink);
+    el.innerHTML = `OBS 瀏覽器來源：寬 <b>${f.w}</b> × 高 <b>${f.h}</b><br>編輯變形 → 位置 <b>${f.x}, ${f.y}</b>　大小 <b>${Math.round(f.w * f.k)} × ${Math.round(f.h * f.k)}</b>`
+      + (shrink ? `<br>⚠ 放不下，已縮小成 ${Math.round(f.k * 100)}%。字會變小，建議把「單條寬度」或頭像調小。` : '');
+  });
+}
+
+/* ---------- 編輯器預覽：用 CCFOLIA 模擬畫面疊在角色格上 ---------- */
+const frames = [];
+let sizeTimer;
+function previewData(i, css) {
+  const c = state.characters[i];
+  const statuses = P.SAMPLE_STATUS.slice(0, state.sb.layout.count);
+  return { css, statuses, initiative: 0, avatar: c.avatar || null };
+}
+function measureFrame(i) {
+  const f = frames[i];
+  if (!f?.doc) return;
+  const sz = K.measure(f.doc), old = state.ccf.sizes[i];
+  f.iframe.style.width = sz.w + 'px';
+  f.iframe.style.height = sz.h + 'px';
+  if (old && old.w === sz.w && old.h === sz.h) return;
+  state.ccf.sizes[i] = sz;
+  clearTimeout(sizeTimer);
+  sizeTimer = setTimeout(commit, 30);
+}
+function syncPreviews() {
+  if (OUTPUT) return;
+  const layer = $('#sbLayer'), n = state.characters.length;
+  while (frames.length > n) frames.pop().iframe.remove();
+  if (state.ccf.sizes.length > state.characters.length) state.ccf.sizes.length = state.characters.length;
+  for (let i = 0; i < n; i++) {
+    let f = frames[i];
+    if (!f) {
+      const iframe = document.createElement('iframe');
+      iframe.tabIndex = -1;
+      iframe.style.cssText = 'width:1200px;height:900px;visibility:hidden';
+      f = frames[i] = { iframe, doc: null, key: '' };
+      iframe.addEventListener('load', () => { f.doc = iframe.contentDocument; f.key = ''; syncPreviews(); });
+      iframe.srcdoc = K.documentHtml();
+      layer.append(iframe);
+    }
+    if (f.doc) {
+      const data = previewData(i, charCss(i));
+      const key = JSON.stringify(data);
+      if (key !== f.key) {
+        f.key = key;
+        K.update(f.doc, data);
+        measureFrame(i);
+        f.doc.fonts.ready.then(() => measureFrame(i));   // 網路字型載入後尺寸會變
+      }
+    }
+    const s = slotInfo[i];
+    if (s) Object.assign(f.iframe.style, { left: s.x + 'px', top: s.y + 'px', transform: `scale(${s.k})`, visibility: f.doc ? 'visible' : 'hidden' });
+  }
+}
+
+function fit() {
+  const w = $('#wrap'), sc = Math.min(w.clientWidth / 1920, w.clientHeight / 1080);
+  const tf = `translate(${(w.clientWidth - 1920 * sc) / 2}px,${(w.clientHeight - 1080 * sc) / 2}px) scale(${sc})`;
+  $('#stage').style.transform = tf;
+  $('#sbLayer').style.transform = tf;
+}
+window.addEventListener('resize', fit);
+
+/* ---------- 編輯器 ---------- */
+const txt = (label, path, ph = '') => `<label class="f">${label}</label><input type="text" data-path="${path}" value="${esc(getPath(path))}" placeholder="${esc(ph)}">`;
+const area = (label, path, rows = 6) => `<label class="f">${label}</label><textarea data-path="${path}" rows="${rows}">${esc(getPath(path))}</textarea>`;
+const img = (label, path) => `<label class="f">${label}</label><div class="img-in"><input type="text" data-path="${path}" value="${esc(getPath(path)?.startsWith('data:') ? '(已上傳圖片)' : getPath(path))}" placeholder="貼上圖片網址 https://…"><label class="btn">上傳<input type="file" accept="image/*" data-upload="${path}" hidden></label><button data-clear="${path}">清除</button></div>`;
+const range = (label, path, min = 0, max = 100) => `<label class="f">${label}：<span data-show="${path}">${getPath(path)}</span>%</label><input type="range" min="${min}" max="${max}" data-path="${path}" data-num value="${esc(getPath(path))}" style="width:100%">`;
+const bgControls = (label, key) => `${img(label, key + '.img')}
+      <label class="f">顯示方式</label>
+      <div class="seg"><button data-fit="${key}:contain" class="${state[key].fit !== 'cover' ? 'on' : ''}">完整顯示</button><button data-fit="${key}:cover" class="${state[key].fit === 'cover' ? 'on' : ''}">填滿裁切</button></div>
+      ${range('濃度', key + '.opacity')}
+      ${range('縮放', key + '.zoom', 20, 300)}
+      <div class="row"><div>${range('左右', key + '.x', -100, 100)}</div><div>${range('上下', key + '.y', -100, 100)}</div></div>
+      <button data-bgreset="${key}" style="margin-top:4px">重設位置與縮放</button>`;
+
+/* ---------- 編輯器：CCFOLIA 狀態條設定（控制項對應 scTool 的各分頁） ---------- */
+let sbTab = 'layout';
+const sv = p => getPath('sb.' + p);
+const SR = (label, ctrl, cond) => `<div class="sr"${cond ? ` data-if="${esc(cond)}"` : ''}><span class="sl">${label}</span>${ctrl}</div>`;
+const SIF = (cond, html) => `<div data-if="${esc(cond)}">${html}</div>`;
+const SG = t => `<div class="sgroup">${t}</div>`;
+const sRange = (p, min, max, step, fmt = '') => `<span class="wv"><input type="range" data-path="sb.${p}" data-num min="${min}" max="${max}" step="${step}" value="${esc(sv(p))}"><output data-out="${p}" data-fmt="${fmt}"></output></span>`;
+const sSel = (p, list, isNum) => `<select data-path="sb.${p}"${isNum ? ' data-num' : ''}>${list.map(([v, t]) => `<option value="${esc(v)}"${String(sv(p)) === String(v) ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>`;
+const sChk = (p, text) => `<label class="ck"><input type="checkbox" data-path="sb.${p}"${sv(p) ? ' checked' : ''}>${text}</label>`;
+const sCol = p => `<input type="color" data-path="sb.${p}" value="${esc(sv(p))}">`;
+const sColA = (c, a) => `<span class="ca">${sCol(c)}<input type="range" data-path="sb.${a}" data-num min="0" max="1" step="0.01" value="${esc(sv(a))}"><output data-out="${a}" data-fmt="pct"></output></span>`;
+const fontList = () => Object.entries(P.FONTS).map(([k, v]) => [k, v.label]);
+const sFont = (label, p, nameP) => SR(label, sSel(p, fontList()))
+  + SR('字型名稱', `<span class="pcf"><input type="text" data-path="sb.${nameP}" value="${esc(sv(nameP))}" placeholder="例）Microsoft JhengHei" spellcheck="false"><button data-pcfont${window.PcFonts?.supported ? '' : ' hidden'}>從清單選擇</button></span>`, `${p}=pc`);
+
+function sbFormat(v, fmt) {
+  const r = Math.round(v * 100) / 100;
+  switch (fmt) {
+    case 'pct': return Math.round(v * 100) + '%';
+    case 'px': return r + 'px';
+    case 'sec': return v > 0 ? r + ' 秒' : '無';
+    case 'em': return r.toFixed(2);
+    case 'bars': return v + ' 條';
+    case 'seg': return v > 1 ? v + ' 段' : '無';
+    case 'under': return '低於 ' + v + '%';
+    default: return String(r);
+  }
+}
+// 同 scTool：「a=x|y」a 是 x 或 y；「a!=x」a 不是 x；用「&」串接；「|」後面也可以接另一個條件
+function sbCond(cond) {
+  return cond.split('&').every(part => {
+    const clauses = [];
+    for (const piece of part.split('|')) {
+      if (/^[\w.]+!?=/.test(piece)) clauses.push({ raw: piece, values: [] });
+      else if (clauses.length) clauses[clauses.length - 1].values.push(piece);
+    }
+    return clauses.some(cl => {
+      const m = cl.raw.match(/^([\w.]+)(!?=)(.*)$/);
+      const hit = [m[3], ...cl.values].includes(String(sv(m[1])));
+      return m[2] === '=' ? hit : !hit;
+    });
+  });
+}
+function sbRefresh() {
+  for (const el of ed.querySelectorAll('[data-if]')) el.hidden = !sbCond(el.dataset.if);
+  for (const o of ed.querySelectorAll('output[data-out]')) { const v = sv(o.dataset.out); if (typeof v === 'number') o.textContent = sbFormat(v, o.dataset.fmt); }
+}
+
+function sbEditor() {
+  const s = state.sb;
+  const pos = (p, opts) => sSel(p, opts);
+  const decoCtrl = (key, [prop, label, type, min, max, step, fmt, show]) => {
+    const p = `decos.${key}.${prop}`;
+    if (type === 'check') return SR('', sChk(p, esc(label)), show);
+    if (type === 'color') return SR(esc(label), sCol(p), show);
+    if (type === 'select') return SR(esc(label), sSel(p, min), show);
+    return SR(esc(label), sRange(p, min, max, step, fmt || ''), show);
+  };
+  const tabs = [['layout', '版面'], ['bar', '狀態條'], ['text', '文字・名稱'], ['effects', '效果・裝飾']];
+  const panel = (key, html) => `<div data-sbpanel="${key}"${sbTab === key ? '' : ' hidden'}>${html}</div>`;
+  return `
+    <label class="f">設計範本</label>
+    <div class="img-in"><select id="sbDesign">${Object.entries(P.DESIGNS).map(([k, d]) => `<option value="${k}"${s.design === k ? ' selected' : ''}>${esc(d.label)}</option>`).join('')}</select><button id="sbApply">套用</button></div>
+    <p class="hint" id="sbDesignDesc">${esc(P.DESIGNS[s.design]?.desc || '')}</p>
+    <label class="ck" style="margin:6px 0"><input type="checkbox" data-path="ccf.followTheme"${state.ccf.followTheme ? ' checked' : ''}>顏色跟隨介面配色（HP/MP/SAN、文字、外框、名稱…）</label>
+    <p class="hint">${state.ccf.followTheme ? '勾選時，下面的顏色會被介面配色蓋掉；想自己調色請先取消勾選（會保留目前的顏色）。' : '套用「跑團介面風」範本時會自動重新勾選。'}</p>
+    <div class="sb-tabs">${tabs.map(([k, t]) => `<button data-sbtab="${k}" class="${sbTab === k ? 'on' : ''}">${t}</button>`).join('')}</div>
+
+    ${panel('layout', `
+      ${SG('狀態數量')}
+      ${SR('條數', sRange('layout.count', 1, 8, 1, 'bars'))}
+      ${SR('', sChk('layout.hideExtra', '隱藏更下面的狀態'))}
+      <p class="hint">對應 CCFOLIA 角色的「狀態」，由上而下第 1、2、3 條…（最多 8 條）。預覽用的是範例數值。</p>
+      ${SG('狀態條排列方式')}
+      ${SR('排列方式', pos('layout.direction', [['column', '直向堆疊'], ['row', '橫向排列'], ['grid', '分成多欄']]))}
+      ${SR('欄數', sRange('layout.columns', 2, 4, 1), 'layout.direction=grid')}
+      ${SR('單條寬度', sRange('layout.width', 80, 600, 2, 'px'))}
+      ${SR('狀態條高度', sRange('layout.height', 3, 80, 1, 'px'))}
+      ${SR('間距', sRange('layout.gap', 0, 40, 1, 'px'))}
+      ${SG('文字的擺放方式')}
+      ${SR('擺放方式', sSel('layout.textLayout', P.TEXT_LAYOUTS))}
+      ${SR('對齊方式', sSel('layout.align', P.ALIGNS), 'layout.textLayout=overlay')}
+      ${SR('邊緣留白', sRange('layout.pad', 0, 30, 1, 'px'), 'layout.textLayout=overlay|labelSide')}
+      ${SR('標籤寬度', sRange('layout.labelW', 16, 160, 1, 'px'), 'layout.textLayout=side|labelSide')}
+      ${SR('數值寬度', sRange('layout.valueW', 24, 200, 1, 'px'), 'layout.textLayout=side')}
+      ${SR('與文字的距離', sRange('layout.textGap', 0, 24, 1, 'px'), 'layout.textLayout!=overlay')}
+      ${SG('角色頭像')}
+      ${SR('', sChk('avatar.show', '顯示頭像（CCFOLIA 棋子的圖片）'))}
+      ${SIF('avatar.show=true', `
+        ${SR('位置', pos('avatar.pos', [['left', '狀態條左側'], ['right', '狀態條右側'], ['top', '狀態條上方']]))}
+        ${SR('寬度', sRange('avatar.w', 24, 320, 2, 'px'))}
+        ${SR('高度', sRange('avatar.h', 24, 480, 2, 'px'))}
+        ${SR('裁切方式', pos('avatar.fit', [['top', '靠上裁切'], ['center', '置中裁切'], ['contain', '完整顯示']]))}
+        ${SR('圓角', sRange('avatar.radius', 0, 160, 1, 'px'))}
+        ${SR('外框', sRange('avatar.borderW', 0, 8, 1, 'px'))}
+        ${SR('外框顏色', sColA('avatar.borderColor', 'avatar.borderAlpha'), 'avatar.useCharColor=false')}
+        ${SR('', sChk('avatar.useCharColor', '外框使用角色的顏色'))}
+        ${SR('背景', sColA('avatar.bg', 'avatar.bgAlpha'))}
+        ${SR('與狀態條的距離', sRange('avatar.gap', 0, 40, 1, 'px'))}
+        ${SR('先攻值', sChk('initiative.show', '顯示在頭像角落'))}
+        ${SIF('initiative.show=true', `
+          ${SR('角落', pos('initiative.corner', [['tl', '左上'], ['tr', '右上'], ['bl', '左下'], ['br', '右下']]))}
+          ${SR('大小', sRange('initiative.size', 14, 48, 1, 'px'))}
+          ${SR('文字 / 背景', `<span class="row">${sCol('initiative.color')}${sCol('initiative.bg')}</span>`)}`)}`)}
+      <p class="hint">先攻值為 0 時 CCFOLIA 不會顯示數字（預覽也一樣）。</p>
+      ${SG('外側留白')}
+      ${SR('留白', sRange('layout.outer', 0, 40, 1, 'px'))}
+      <p class="hint">避免光暈或陰影被裁掉，在周圍預留的寬度。</p>`)}
+
+    ${panel('bar', `
+      ${SG('形狀')}
+      ${SR('形狀', sSel('bar.shape', P.SHAPES))}
+      ${SR('圓角', sRange('bar.radius', 0, 40, 1, 'px'), 'bar.shape=rect')}
+      ${SR('切口深度', sRange('bar.cut', 0, 40, 1, 'px'), 'bar.shape=chamfer|arrow|tag')}
+      ${SR('傾斜', sRange('bar.slant', 0, 40, 1, 'px'), 'bar.shape=slant')}
+      ${SG('外框線')}
+      ${SR('粗細', sRange('bar.borderW', 0, 6, 1, 'px'))}
+      ${SIF('bar.borderW!=0', SR('顏色', sColA('bar.borderColor', 'bar.borderAlpha')) + SR('', sChk('bar.double', '改為雙線')))}
+      ${SG('減少的部分（底色）')}
+      ${SR('顯示方式', sSel('bar.track', P.TRACKS))}
+      ${SR('顏色', sColA('bar.trackColor', 'bar.trackAlpha'), 'bar.track!=none')}
+      ${SR('混色比例', sRange('bar.tint', 0, 1, 0.01, 'pct'), 'bar.track=tint')}
+      ${SG('填色')}
+      ${SR('填色方式', sSel('bar.fill', P.FILLS))}
+      ${SR('', sChk('bar.flow', '讓斜紋流動'), 'bar.fill=stripes')}
+      ${SR('分段', sRange('bar.segments', 0, 40, 1, 'seg'))}
+      ${SR('分段間隔', sRange('bar.segGap', 1, 8, 1, 'px'), 'bar.segments!=0|1')}
+      ${SG('動態與陰影')}
+      ${SR('增減速度', sRange('bar.speed', 0, 2, 0.05, 'sec'))}
+      ${SR('陰影', sRange('bar.shadow', 0, 1, 0.05, 'pct'))}
+      ${SG('逐條設定')}
+      <div class="sb-bar head"><span>#</span><span>顯示名稱（留空不變）</span><span>色1</span><span>色2</span><span>圖示</span><span title="瀕危效果">⚠</span></div>
+      ${s.bars.slice(0, s.layout.count).map((b, i) => `<div class="sb-bar"><span>${i + 1}</span>
+        <input type="text" data-path="sb.bars.${i}.label" value="${esc(b.label)}" placeholder="${esc(P.SAMPLE_STATUS[i][0])}">
+        ${sCol(`bars.${i}.c1`)}${sCol(`bars.${i}.c2`)}${sSel(`bars.${i}.icon`, P.ICONS)}
+        <input type="checkbox" data-path="sb.bars.${i}.low"${b.low ? ' checked' : ''} title="套用瀕危效果"></div>`).join('')}
+      <p class="hint">色2 用於漸層與斜紋。⚠ 代表這一條要不要套用「效果・裝飾」裡的瀕危效果。</p>
+      ${SG('圖示')}
+      ${SR('', sChk('icons.show', '在狀態條左側顯示圖示'))}
+      ${SIF('icons.show=true', SR('大小', sRange('icons.size', 10, 48, 1, 'px')) + SR('與狀態條的距離', sRange('icons.gap', 0, 20, 1, 'px')))}`)}
+
+    ${panel('text', `
+      ${SG('字型')}
+      ${sFont('標籤', 'text.labelFont', 'text.labelFontName')}
+      ${sFont('數值', 'text.valueFont', 'text.valueFontName')}
+      ${SR('字重', sSel('text.weight', P.WEIGHTS, true))}
+      <p class="hint">標示「英數」的字型只有英數字，中文會改用本機字型。選「自行輸入名稱」可用電腦裡的字型，<b>但執行 OBS 的電腦也要裝同一套</b>。</p>
+      ${SG('大小')}
+      ${SR('標籤', sRange('text.labelSize', 8, 48, 1, 'px'))}
+      ${SR('目前值', sRange('text.valueSize', 8, 64, 1, 'px'))}
+      ${SR('最大值', sRange('text.maxSize', 6, 48, 1, 'px'), 'text.valueMode=both')}
+      ${SR('字距', sRange('text.spacing', 0, 0.3, 0.01, 'em'))}
+      ${SG('顯示與顏色')}
+      ${SR('', sChk('text.showLabel', '顯示標籤（HP 等）'))}
+      ${SR('數值', sSel('text.valueMode', P.VALUE_MODES))}
+      ${SR('文字', sCol('text.color'))}
+      ${SR('最大值顏色', sColA('text.subColor', 'text.subAlpha'), 'text.valueMode=both')}
+      ${SR('', sChk('text.labelByBar', '標籤使用狀態條的顏色'))}
+      ${SG('描邊')}
+      ${SR('種類', sSel('text.outline', P.OUTLINES))}
+      ${SR('顏色', sColA('text.outlineColor', 'text.outlineAlpha'), 'text.outline!=none')}
+      ${SR('粗細', sRange('text.outlineW', 1, 5, 0.5, 'px'), 'text.outline=stroke')}
+      ${SG('名字')}
+      ${SR('位置', sSel('name.pos', P.NAME_POS))}
+      ${SIF('name.pos!=none', `
+        ${SR('外觀', sSel('name.style', P.NAME_STYLES))}
+        ${sFont('字型', 'name.font', 'name.fontName')}
+        ${SR('字重', sSel('name.weight', P.WEIGHTS, true))}
+        ${SR('大小', sRange('name.size', 10, 64, 1, 'px'))}
+        ${SR('文字顏色', sCol('name.color'))}
+        ${SR('背景', sColA('name.bg', 'name.bgAlpha'), 'name.style=plate|sidebar|name.pos=avatar')}
+        ${SIF('name.style=underline|sidebar|tab|badge', SR('', sChk('name.useCharColor', '線條與背景使用角色的顏色')) + SR('線條・背景', sCol('name.accent'), 'name.useCharColor=false'))}
+        ${SR('對齊', pos('name.align', [['left', '靠左'], ['center', '置中'], ['right', '靠右']]), 'name.pos!=avatar')}
+        ${SR('過長的名字', pos('name.overflow', [['ellipsis', '用「…」省略'], ['wrap', '自動換行'], ['grow', '依長度加寬']]), 'name.pos!=left')}
+        ${SR('', sChk('name.vertical', '改為直書'), 'name.pos=left')}
+        ${SR('', sChk('name.fitHeight', '過長的名字依狀態條高度換行'), 'name.pos=left&name.vertical=true')}
+        ${SR('與狀態條的距離', sRange('name.gap', 0, 40, 1, 'px'), 'name.pos!=avatar')}`)}
+      <p class="hint">CCFOLIA 的這個畫面本身沒有名字，名字會寫進每個角色的 CSS 裡（用上面角色的「名字」）。</p>`)}
+
+    ${panel('effects', `
+      ${SG('瀕危效果')}
+      ${SR('', sChk('alert.lowOn', '剩餘量過低時提示'))}
+      ${SIF('alert.lowOn=true', `
+        ${SR('剩餘量', sRange('alert.lowAt', 5, 95, 5, 'under'))}
+        ${SR('顏色', sCol('alert.lowColor'))}
+        ${SR('效果', `<span class="cks">${sChk('alert.lowPulse', '脈動發光')}${sChk('alert.lowBlink', '狀態條閃爍')}${sChk('alert.lowShake', '震動')}${sChk('alert.lowFill', '狀態條變成這個顏色')}${sChk('alert.lowText', '數值變成這個顏色')}</span>`)}`)}
+      <p class="hint">要套用在哪幾條，在「狀態條」分頁的 ⚠ 勾選。</p>
+      ${SG('歸零時')}
+      ${SR('', sChk('alert.zeroOn', '改變歸零的狀態條'))}
+      ${SR('效果', `<span class="cks">${sChk('alert.zeroGray', '變成灰色')}${sChk('alert.zeroBlink', '文字閃爍')}</span>`, 'alert.zeroOn=true')}
+      ${SG('CCFOLIA 的紅色數字')}
+      ${SR('', sChk('alert.red80', '使用紅色數字'))}
+      ${SIF('alert.red80=true', SR('顏色', sCol('alert.redColor')) + SR('', sChk('alert.redBlink', '閃爍')))}
+      <p class="hint">CCFOLIA 在目前值降到<b>最大值的 80% 以下</b>時會把數字變紅（和瀕危判定是分開的）。</p>
+      ${SG('裝飾')}
+      ${Object.entries(P.DECO_TYPES).map(([key, T]) => `<div class="sb-deco">${sChk(`decos.${key}.on`, `${esc(T.label)} <small>${esc(T.desc)}</small>`)}
+        ${SIF(`decos.${key}.on=true`, T.controls.map(c => decoCtrl(key, c)).join(''))}</div>`).join('')}
+      <p class="hint">瀕危、歸零效果需要 OBS 30 以上（舊版只是不會顯示效果）。</p>`)}`;
+}
+
+function charBlock(c, i) {
+  return `
+    <div class="char">
+      <div class="char-h"><span>#${i + 1} ${esc(c.name)}</span>
+        <button data-act="up" data-i="${i}">↑</button><button data-act="down" data-i="${i}">↓</button><button data-act="del" data-i="${i}">刪除</button></div>
+      <div class="row"><div>${txt('名字（寫進 CSS）', `characters.${i}.name`)}</div><div class="nf"><label class="f">角色顏色</label><input type="color" data-path="characters.${i}.color" value="${esc(c.color)}"></div></div>
+      ${txt('CCFOLIA 角色 ID 或棋子網址', `characters.${i}.ccf`, '棋子按右鍵 →「Copy Id (for dev)」')}
+      <p class="hint" style="color:#ffb86b;margin:2px 0 0" data-note="${i}"></p>
+      <div class="charbtns"><button class="primary" data-copy="css" data-i="${i}">複製 CSS</button><button data-copy="url" data-i="${i}">複製網址</button></div>
+      <div class="obsline" data-obs="${i}"></div>
+      ${img('頭像（只用在預覽）', `characters.${i}.avatar`)}
+    </div>`;
+}
+
+function buildEditor() {
+  if (OUTPUT) return;
+  const s = state;
+  if (s.ccf.followTheme) applyThemeColors(s.sb);
+  // 重建時保留各區塊的展開狀態
+  const wasOpen = ed.querySelector('details') ? new Set([...ed.querySelectorAll('details[open]')].map(d => d.dataset.k)) : null;
+  const chars = s.characters.map((c, i) => charBlock(c, i)).join('');
+
+  $('#editor').innerHTML = `
+    <h1>🎲 TRPG 跑團介面產生器</h1>
+    <div class="toolbar">
+      <button class="primary" id="obsUrl">複製 OBS 網址</button>
+      <button id="exp">匯出 JSON</button>
+      <label class="btn">匯入 JSON<input type="file" accept=".json" id="imp" hidden></label>
+      <button id="reset">重設範例</button>
+    </div>
+    <p class="hint">右邊即時預覽 1920×1080，資料自動存在瀏覽器裡。<b>OBS 瀏覽器來源讀不到這裡的存檔</b>：改完後按「複製 OBS 網址」，貼到 OBS 瀏覽器來源的網址欄（寬 1920、高 1080），每次修改都要重新複製貼上一次。</p>
+
+    <details data-k="scene"><summary>📜 劇情畫面（16:9 挖空區，可不填）</summary><div class="sec">
+      <p class="hint">16:9 區域是挖空的（只留外框，裡面透明），在 OBS 把圖片、遊戲畫面或影片放在這個介面的<b>下面</b>就會透出來。要用 OBS 的「瀏覽器來源」才看得到透明；「視窗擷取」會變成一片底色。需要的話可以在這裡放旁白字幕。</p>
+      ${area('劇情文字（留空就不顯示）', 'scene.text', 4)}
+    </div></details>
+
+    <details data-k="chars" open><summary>🧙 角色（${s.characters.length}）</summary><div class="sec">
+      <p class="hint">每個角色一格空白，給 OBS 疊上 CCFOLIA 的「瀏覽器來源」，HP/MP/SAN 會跟著 CCFOLIA 自動更新。編輯器裡疊著的是預覽，OBS 畫面上不會有。</p>
+      ${txt('CCFOLIA 房間網址', 'ccf.room', 'https://ccfolia.com/rooms/…')}
+      ${bgControls('角色狀態背景圖', 'charsBg')}
+      ${chars}<button id="addChar">＋ 新增角色</button>
+    </div></details>
+
+    <details data-k="sb"><summary>📊 CCFOLIA 狀態條樣式</summary><div class="sec">${sbEditor()}</div></details>
+
+    <details data-k="obs"><summary>📡 CCFOLIA × OBS 設定方式</summary><div class="sec">
+      <ol class="note-ol">
+        <li>OBS 的畫布設 1920×1080。介面本身用「瀏覽器來源」，網址貼上「複製 OBS 網址」的內容，寬 1920、高 1080，位置 0, 0。</li>
+        <li>每個角色各「新增來源 → 瀏覽器」，網址貼上該角色的「複製網址」，寬高填上面角色區顯示的<b>瀏覽器來源尺寸</b>。</li>
+        <li>把「自訂 CSS」欄位清空，貼上該角色的「複製 CSS」。</li>
+        <li>來源放在視窗擷取的上面，右鍵 →「變形 → 編輯變形」，填入顯示的<b>位置</b>與<b>大小</b>，就會剛好落在角色格裡。</li>
+        <li>畫面一片空白時：來源右鍵 →「互動」，登入 CCFOLIA 並進入房間（做過一次就會記住）。</li>
+        <li>第二位角色開始請<b>重新「新增來源」</b>建立，不要用「貼上（參照）」，否則全部都會變成同一個角色。</li>
+      </ol>
+      <p class="hint">CCFOLIA 角色「狀態」的排列順序對應第 1、2、3 條的顏色（例：HP → MP → SAN）。聊天室輸入 <code>:HP-3</code>、<code>:SAN=45</code> 之類的指令，OBS 也會立刻更新。改了樣式或人數之後，要重新複製 CSS、核對尺寸與位置。</p>
+    </div></details>
+
+    <details data-k="kp"><summary>🐙 主持人${s.kp.show ? "" : "（隱藏中）"}</summary><div class="sec">
+      <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer"><input type="checkbox" data-path="kp.show" ${s.kp.show ? "checked" : ""}>在畫面上顯示主持人格子</label>
+      <p class="hint">不勾的時候，角色欄會往下延伸補滿空間。</p>
+      <div class="row"><div>${txt('名稱', 'kp.name')}</div><div>${txt('副標', 'kp.sub')}</div><div>${txt('圖示', 'kp.icon')}</div></div>
+      ${img('主持人頭像（可不填）', 'kp.avatar')}
+    </div></details>
+
+    <details data-k="vt"><summary>🌙 VTuber 區</summary><div class="sec">
+      ${txt('頂部文字（自由填寫，例如 Twitter 帳號、KP 染香；留空就隱藏）', 'twitter')}
+      ${bgControls('背景圖', 'vtBg')}
+    </div></details>
+
+    <details data-k="notes"><summary>📝 劇情筆記</summary><div class="sec">${area('一行一條（最多 5 條）', 'notes', 5)}</div></details>
+
+    <details data-k="bar"><summary>🏷️ 標題列</summary><div class="sec">
+      ${txt('今日標題', 'title')}${txt('副標', 'subtitle')}${txt('Hashtag（空白分隔）', 'hashtags')}
+    </div></details>
+
+    <details data-k="theme" open><summary>🎨 配色</summary><div class="sec">
+      <label class="f">介面模式</label>
+      <div class="seg"><button data-mode="dark" class="${s.theme.mode === 'dark' ? 'on' : ''}">🌙 深色</button><button data-mode="light" class="${s.theme.mode === 'light' ? 'on' : ''}">☀️ 淺色</button></div>
+      <label class="f">五色（同 Realtime Colors 的順序）</label>
+      <div class="swatches">${COLOR_KEYS.map(([k, lb]) => `<label><input type="color" data-path="theme.colors.${k}" value="${esc(s.theme.colors[k])}">${lb}</label>`).join('')}</div>
+      <div class="toolbar" style="margin-top:8px"><button class="primary" id="randColor">🎲 隨機配色</button><button id="resetColor">恢復預設</button><a class="btn" id="rtcLink" href="${rtcUrl()}" target="_blank" style="text-decoration:none">在 Realtime Colors 開啟</a></div>
+      <label class="f">貼上 Realtime Colors 網址套用</label>
+      <div class="img-in"><input type="text" id="rtcIn" placeholder="https://www.realtimecolors.com/?colors=…"><button id="rtcApply" class="primary">套用</button></div>
+      <p class="hint">可以在 Realtime Colors 一直按空白鍵換隨機配色，看到喜歡的就複製網址貼回來。不管原本是深色還是淺色配色，都會依上面選的模式自動反轉明暗。</p>
+    </div></details>`;
+  if (wasOpen) for (const d of ed.querySelectorAll('details')) d.open = wasOpen.has(d.dataset.k);
+  sbRefresh();
+  updateCharNotes();
+  updateObsInfo();
+}
+function updateCharNotes() {
+  for (const el of ed.querySelectorAll('[data-note]')) {
+    const c = state.characters[el.dataset.note];
+    el.textContent = !M.parseCharacter(c.ccf) ? '填入角色 ID 後就能產生網址。'
+      : (!M.parseRoom(state.ccf.room) && !/rooms\//.test(c.ccf)) ? '填入上面的房間網址後就能產生網址。' : '';
+  }
+}
+
+const ed = $('#editor');
+ed.addEventListener('input', e => {
+  const t = e.target, p = t.dataset.path;
+  if (!p) return;
+  if (t.value === '(已上傳圖片)') return;
+  setPath(p, t.type === 'checkbox' ? t.checked : 'num' in t.dataset ? (t.value === '' ? '' : Number(t.value)) : t.value);
+  if (p === 'kp.show') buildEditor();
+  if (p === 'ccf.followTheme') {
+    if (!t.checked) applyThemeColors(state.sb);   // 取消時保留目前看到的顏色
+    commit(); buildEditor(); return;
+  }
+  const shown = ed.querySelector(`[data-show="${p}"]`);
+  if (shown) shown.textContent = t.value;
+  if (p.startsWith('theme.')) $('#rtcLink').href = rtcUrl();
+  commit();
+  if (p.startsWith('sb.')) sbRefresh();
+  if (p === 'ccf.room' || /^characters\.\d+\.ccf$/.test(p)) updateCharNotes();
+});
+ed.addEventListener('click', e => {
+  const t = e.target.closest('button');
+  if (!t) return;
+  const cs = state.characters;
+  if (t.dataset.sbtab) {
+    sbTab = t.dataset.sbtab;
+    for (const b of ed.querySelectorAll('[data-sbtab]')) b.classList.toggle('on', b === t);
+    for (const p of ed.querySelectorAll('[data-sbpanel]')) p.hidden = p.dataset.sbpanel !== sbTab;
+  } else if (t.id === 'sbApply') {
+    const key = $('#sbDesign').value;
+    M.applyDesign(state.sb, key);
+    state.ccf.followTheme = key === 'overlay';
+    commit(); buildEditor(); toast(`已套用「${P.DESIGNS[key].label}」`);
+  } else if (t.dataset.copy) {
+    const i = +t.dataset.i, c = cs[i];
+    if (t.dataset.copy === 'url') {
+      const url = charUrl(c);
+      if (!url) return toast('需要同時填入房間網址與角色 ID');
+      copyText(url).then(ok => toast(ok ? `已複製「${c.name}」的網址` : '複製失敗'));
+    } else {
+      const sz = sizeOf(i);
+      copyText(charCss(i)).then(ok => toast(ok ? `已複製「${c.name}」的 CSS（來源尺寸 ${sz.w}×${sz.h}）` : '複製失敗'));
+    }
+  } else if ('pcfont' in t.dataset) {
+    window.PcFonts?.open(t.closest('.pcf').querySelector('input'));
+  } else if (t.dataset.act) {
+    const i = +t.dataset.i;
+    if (t.dataset.act === 'del' && confirm(`刪除角色「${cs[i].name}」？`)) cs.splice(i, 1);
+    if (t.dataset.act === 'up' && i > 0) [cs[i - 1], cs[i]] = [cs[i], cs[i - 1]];
+    if (t.dataset.act === 'down' && i < cs.length - 1) [cs[i + 1], cs[i]] = [cs[i], cs[i + 1]];
+    buildEditor(); commit();
+  } else if (t.dataset.clear) {
+    setPath(t.dataset.clear, ''); buildEditor(); commit();
+  } else if (t.id === 'addChar') {
+    cs.push({ name: '新角色', avatar: '', color: '#c4b5fd', ccf: '' });
+    buildEditor(); commit();
+  } else if (t.id === 'obsUrl') {
+    packState().then(packed => {
+      const url = location.href.split(/[?#]/)[0] + '?view=output#s=' + packed;
+      copyText(url).then(ok => toast(!ok ? '複製失敗'
+        : url.length > 1500000 ? `已複製，但網址很長（${Math.round(url.length / 1024)} KB），背景圖建議改用圖片網址`
+        : '已複製 OBS 網址，貼到 OBS 瀏覽器來源的網址欄'));
+    });
+  } else if (t.id === 'exp') {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' }));
+    a.download = `trpg-${state.title || 'overlay'}.json`; a.click();
+  } else if (t.dataset.fit) {
+    const [key, fit] = t.dataset.fit.split(':');
+    state[key].fit = fit; buildEditor(); commit();
+  } else if (t.dataset.bgreset) {
+    Object.assign(state[t.dataset.bgreset], { zoom: 100, x: 0, y: 0 }); buildEditor(); commit();
+  } else if (t.dataset.mode) {
+    state.theme.mode = t.dataset.mode; buildEditor(); commit();
+  } else if (t.id === 'randColor') {
+    state.theme.colors = randomPalette(); buildEditor(); commit();
+  } else if (t.id === 'resetColor') {
+    state.theme.colors = structuredClone(DEFAULT.theme.colors); buildEditor(); commit();
+  } else if (t.id === 'rtcApply') {
+    const c = parseRtc($('#rtcIn').value);
+    if (!c) return toast('讀不到配色：網址裡要有 colors=xxxxxx-xxxxxx-xxxxxx-xxxxxx-xxxxxx');
+    state.theme.colors = c; buildEditor(); commit(); toast('已套用配色');
+  } else if (t.id === 'reset') {
+    if (confirm('重設成範例資料？目前內容會被覆蓋（建議先匯出）')) { state = structuredClone(DEFAULT); buildEditor(); commit(); }
+  }
+});
+ed.addEventListener('change', e => {
+  const t = e.target;
+  // 這些會讓編輯器的列數或提示改變，放開滑桿／輸入完才重建（拖曳中重建會中斷拖曳）
+  if (t.dataset.path === 'sb.layout.count') buildEditor();
+  if (t.id === 'sbDesign') $('#sbDesignDesc').textContent = P.DESIGNS[t.value]?.desc || '';
+  if (t.dataset.upload && t.files[0]) {
+    readImage(t.files[0]).then(url => { setPath(t.dataset.upload, url); buildEditor(); commit(); });
+  } else if (t.id === 'imp' && t.files[0]) {
+    t.files[0].text().then(tx => {
+      try { state = fixState(JSON.parse(tx)); buildEditor(); commit(); toast('已匯入'); }
+      catch (err) { toast('JSON 格式錯誤'); }
+    });
+  }
+});
+
+// 上傳圖片時縮小，避免塞爆瀏覽器儲存空間
+/* ---------- 配色 ---------- */
+// 順序同 Realtime Colors 網址：colors=text-background-primary-secondary-accent
+const COLOR_KEYS = [['text', '文字'], ['bg', '背景'], ['pri', '主色<br>框線'], ['sec', '次色<br>角落/標籤'], ['acc', '強調<br>裝飾']];
+function hexToHsl(hex) {
+  const n = parseInt(hex.slice(1), 16), r = (n >> 16 & 255) / 255, g = (n >> 8 & 255) / 255, b = (n & 255) / 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+  let h = 0, s = 0;
+  if (d) {
+    s = d / (1 - Math.abs(2 * l - 1));
+    h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  }
+  return [(h * 60 + 360) % 360, s * 100, l * 100];
+}
+function hslToHex(h, s, l) {
+  s /= 100; l /= 100;
+  const f = n => { const k = (n + h / 30) % 12, c = l - s * Math.min(l, 1 - l) * Math.max(-1, Math.min(k - 3, 9 - k, 1)); return Math.round(c * 255).toString(16).padStart(2, '0'); };
+  return '#' + f(0) + f(8) + f(4);
+}
+const invert = hex => { const [h, s, l] = hexToHsl(hex); return hslToHex(h, s, 100 - l); };
+// 實際顯示用的 5 色：配色本身的深淺跟選的模式不同時，整組反轉明暗
+function effColors() {
+  const { mode, colors } = state.theme;
+  const flip = (hexToHsl(colors.bg)[2] < 50) !== (mode === 'dark');
+  return Object.fromEntries(COLOR_KEYS.map(([k]) => [k, flip ? invert(colors[k]) : colors[k]]));
+}
+function applyTheme(st) {
+  const c = effColors(), mode = state.theme.mode;
+  for (const [k] of COLOR_KEYS) st.style.setProperty('--' + k, c[k]);
+  st.dataset.mode = mode;
+  document.getElementById('wrap').style.background = mode === 'light' ? '#d9d5df' : '#050407';
+}
+// 把介面配色寫進狀態條設定（顏色跟隨介面配色）
+function applyThemeColors(sb) {
+  const c = effColors(), mode = state.theme.mode, st = STAT_COLORS[mode];
+  const deep = hex => { const [h, s, l] = hexToHsl(hex); return hslToHex(h, s, l * 0.55); };
+  ['hp', 'mp', 'san'].forEach((k, i) => Object.assign(sb.bars[i], { c1: st[k], c2: deep(st[k]) }));
+  Object.assign(sb.text, { color: c.text, subColor: c.text, outlineColor: mode === 'dark' ? '#000000' : c.bg });
+  Object.assign(sb.bar, { borderColor: c.pri, trackColor: c.bg });
+  Object.assign(sb.name, { color: c.text, bg: c.bg, accent: c.sec });
+  Object.assign(sb.avatar, { borderColor: c.sec, bg: c.bg });
+  Object.assign(sb.initiative, { color: c.bg, bg: c.sec });
+  Object.assign(sb.alert, { lowColor: st.hp });
+  Object.assign(sb.decos.panel, { color: c.bg, borderColor: c.pri });
+  Object.assign(sb.decos.frame, { color: c.sec });
+  Object.assign(sb.decos.brackets, { color: c.acc });
+  Object.assign(sb.decos.ticks, { color: c.text });
+}
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; }
+  catch (err) {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.cssText = 'position:fixed;opacity:0';
+    document.body.append(ta); ta.select();
+    const ok = document.execCommand('copy');
+    ta.remove(); return ok;
+  }
+}
+function randomPalette() {
+  const r = (a, b) => a + Math.random() * (b - a), h = r(0, 360);
+  return {
+    text: hslToHex(h, r(40, 80), r(88, 94)),
+    bg: hslToHex(h, r(35, 75), r(3, 7)),
+    pri: hslToHex((h + r(-15, 15) + 360) % 360, r(55, 85), r(68, 80)),
+    sec: hslToHex((h + [30, -30, 150, 180, 210][Math.floor(r(0, 5))] + 360) % 360, r(45, 75), r(55, 68)),
+    acc: hslToHex((h + r(40, 320)) % 360, r(70, 95), r(55, 68)),
+  };
+}
+function parseRtc(raw) {
+  raw = raw.trim();
+  let v = raw;
+  try { v = new URL(raw).searchParams.get('colors') || ''; } catch (e) {}
+  const parts = v.split('-').map(x => x.trim().replace(/^#/, ''));
+  if (parts.length < 5 || !parts.slice(0, 5).every(x => /^[0-9a-f]{6}$/i.test(x))) return null;
+  return Object.fromEntries(COLOR_KEYS.map(([k], i) => [k, '#' + parts[i].toLowerCase()]));
+}
+function rtcUrl() {
+  return 'https://www.realtimecolors.com/?colors=' + COLOR_KEYS.map(([k]) => state.theme.colors[k].slice(1)).join('-') + '&fonts=Inter-Inter';
+}
+
+function readImage(file, maxSize = 1280) {
+  return new Promise(res => {
+    const im = new Image();
+    im.onload = () => {
+      const r = Math.min(1, maxSize / Math.max(im.width, im.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(im.width * r); c.height = Math.round(im.height * r);
+      c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+      res(c.toDataURL('image/webp', 0.85));
+      URL.revokeObjectURL(im.src);
+    };
+    im.src = URL.createObjectURL(file);
+  });
+}
+
+(async () => {
+  if (PACKED) {
+    try { state = fixState(await unpackState(PACKED)); }
+    catch (e) { console.error('網址裡的設定讀不到', e); }
+  }
+  if (state.ccf.followTheme) applyThemeColors(state.sb);
+  buildEditor();
+  fit();
+  render();
+})();
+</script>
+</body>
+</html>
