@@ -299,6 +299,33 @@ if (bc && !PACKED) bc.onmessage = e => { state = e.data; render(); if (!OUTPUT) 
 if (!PACKED) window.addEventListener('storage', e => { if (e.key === KEY) { state = load(); render(); } });
 
 /* ---------- 設定 ⇄ 網址 ---------- */
+// OBS 瀏覽器來源的網址欄是 Qt 的單行輸入框，最多 32767 字；瀏覽器本身的網址上限約 2MB
+const OBS_URL_MAX = 32000, BROWSER_URL_MAX = 2000000;
+const obsUrl = async () => location.href.split(/[?#]/)[0] + '?view=output#s=' + await packState();
+// 「儲存 OBS 檔案」：存一個只會轉址的小 HTML，OBS 用「本機檔案」開它，就不受網址欄長度限制
+let obsFileHandle = null;
+async function saveObsFile() {
+  const url = await obsUrl();
+  if (url.length > BROWSER_URL_MAX) return toast(`設定有 ${(url.length / 1e6).toFixed(1)} MB，超過瀏覽器的上限。請把上傳的圖片（尤其 GIF）改用圖片網址`, 6000);
+  const html = '<!doctype html><meta charset="utf-8"><title>TRPG 跑團介面（OBS）</title><style>html,body{margin:0;background:transparent}</style>\n'
+    + '<!-- 由 TRPG 跑團介面產生器的「儲存 OBS 檔案」產生，OBS 瀏覽器來源勾「本機檔案」選這個檔 -->\n'
+    + `<script>location.replace(${JSON.stringify(url)});<\/script>\n`;
+  if (window.showSaveFilePicker) {
+    try {
+      if (!obsFileHandle) obsFileHandle = await showSaveFilePicker({ suggestedName: 'trpg-obs.html', types: [{ description: 'HTML', accept: { 'text/html': ['.html'] } }] });
+      const w = await obsFileHandle.createWritable();
+      await w.write(html); await w.close();
+      return toast(`已儲存「${obsFileHandle.name}」，OBS 來源按右鍵「重新整理」就會更新`, 5000);
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+      obsFileHandle = null;   // 檔案被移走或沒有權限，改用一般下載
+    }
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+  a.download = 'trpg-obs.html'; a.click();
+  toast('已下載 trpg-obs.html。之後再下載時，請覆蓋 OBS 正在用的那個檔', 5000);
+}
 async function packState() {
   const o = structuredClone(state);
   delete o.sb;                                              // 輸出畫面用不到狀態條設定
@@ -320,7 +347,7 @@ async function unpackState(text) {
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const bg = u => u ? `background-image:url("${String(u).replace(/["\\\n]/g, encodeURIComponent)}")` : '';
-function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 2500); }
+function toast(msg, ms = 2500) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), ms); }
 function getPath(p) { return p.split('.').reduce((o, k) => o?.[k], state); }
 function setPath(p, v) { const ks = p.split('.'); const last = ks.pop(); ks.reduce((o, k) => o[k], state)[last] = v; }
 
@@ -747,11 +774,12 @@ function buildEditor() {
     <h1>🎲 TRPG 跑團介面產生器</h1>
     <div class="toolbar">
       <button class="primary" id="obsUrl">複製 OBS 網址</button>
+      <button id="obsFile">儲存 OBS 檔案</button>
       <button id="exp">匯出 JSON</button>
       <label class="btn">匯入 JSON<input type="file" accept=".json" id="imp" hidden></label>
       <button id="reset">重設範例</button>
     </div>
-    <p class="hint">右邊即時預覽 1920×1080，資料自動存在瀏覽器裡。<b>OBS 瀏覽器來源讀不到這裡的存檔</b>：改完後按「複製 OBS 網址」，貼到 OBS 瀏覽器來源的網址欄（寬 1920、高 1080），每次修改都要重新複製貼上一次。</p>
+    <p class="hint">右邊即時預覽 1920×1080，資料自動存在瀏覽器裡。<b>OBS 瀏覽器來源讀不到這裡的存檔</b>，每次修改後要用下面其中一種方式更新 OBS（瀏覽器來源寬 1920、高 1080）：<br>・<b>複製 OBS 網址</b>：貼到 OBS 瀏覽器來源的網址欄。有上傳圖片（尤其 GIF）時網址會太長，OBS 貼不下。<br>・<b>儲存 OBS 檔案</b>：存成一個 HTML 檔，OBS 瀏覽器來源勾「本機檔案」選這個檔。之後再按一次會直接覆蓋同一個檔，OBS 來源按右鍵「重新整理」就會更新。有上傳圖片時用這個。</p>
 
     <details data-k="scene"><summary>📜 劇情畫面（16:9 挖空區，可不填）</summary><div class="sec">
       <p class="hint">16:9 區域是挖空的（只留外框，裡面透明），在 OBS 把圖片、遊戲畫面或影片放在這個介面的<b>下面</b>就會透出來。要用 OBS 的「瀏覽器來源」才看得到透明；「視窗擷取」會變成一片底色。右上角可以放一到五行「前段＋後段」文字，例如「地點　S市」；整行留空就不顯示，前段留空時只顯示後段。</p>
@@ -777,7 +805,7 @@ function buildEditor() {
 
     <details data-k="obs"><summary>📡 CCFOLIA × OBS 設定方式</summary><div class="sec">
       <ol class="note-ol">
-        <li>OBS 的畫布設 1920×1080。介面本身用「瀏覽器來源」，網址貼上「複製 OBS 網址」的內容，寬 1920、高 1080，位置 0, 0。</li>
+        <li>OBS 的畫布設 1920×1080。介面本身用「瀏覽器來源」，網址貼上「複製 OBS 網址」的內容（或勾「本機檔案」選「儲存 OBS 檔案」存的檔），寬 1920、高 1080，位置 0, 0。</li>
         <li>每個角色各「新增來源 → 瀏覽器」，網址貼上該角色的「複製網址」，寬高填上面角色區顯示的<b>瀏覽器來源尺寸</b>。</li>
         <li>把「自訂 CSS」欄位清空，貼上該角色的「複製 CSS」。</li>
         <li>來源放在視窗擷取的上面，右鍵 →「變形 → 編輯變形」，填入顯示的<b>位置</b>與<b>大小</b>，就會剛好落在角色格裡。</li>
@@ -887,12 +915,12 @@ ed.addEventListener('click', e => {
     cs.push({ name: '新角色', color: '#c4b5fd', ccf: '' });
     buildEditor(); commit();
   } else if (t.id === 'obsUrl') {
-    packState().then(packed => {
-      const url = location.href.split(/[?#]/)[0] + '?view=output#s=' + packed;
-      copyText(url).then(ok => toast(!ok ? '複製失敗'
-        : url.length > 1500000 ? `已複製，但網址很長（${Math.round(url.length / 1024)} KB），背景圖建議改用圖片網址`
-        : '已複製 OBS 網址，貼到 OBS 瀏覽器來源的網址欄'));
+    obsUrl().then(url => {
+      if (url.length > OBS_URL_MAX) return toast(`網址有 ${Math.round(url.length / 1000)} 千字，OBS 的網址欄最多約 3.2 萬字，貼了會被截斷。請改用「儲存 OBS 檔案」`, 6000);
+      copyText(url).then(ok => toast(ok ? '已複製 OBS 網址，貼到 OBS 瀏覽器來源的網址欄' : '複製失敗'));
     });
+  } else if (t.id === 'obsFile') {
+    saveObsFile();
   } else if (t.id === 'exp') {
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' }));
@@ -1034,7 +1062,11 @@ function readImage(file, maxSize = 1280) {
 (async () => {
   if (PACKED) {
     try { state = fixState(await unpackState(PACKED)); }
-    catch (e) { console.error('網址裡的設定讀不到', e); }
+    catch (e) {
+      // 不要默默顯示預設內容，直接在畫面上說明
+      console.error('網址裡的設定讀不到', e);
+      document.body.insertAdjacentHTML('beforeend', '<div style="position:fixed;left:20px;top:20px;z-index:99;padding:14px 20px;background:#5a1d2b;color:#fff;font:20px/1.6 sans-serif;border-radius:8px;max-width:80%">讀不到網址裡的設定，網址可能太長被截斷了。<br>請在產生器改用「儲存 OBS 檔案」，或把上傳的圖片改用圖片網址。</div>');
+    }
   }
   if (state.ccf.followTheme) applyThemeColors(state.sb);
   buildEditor();
