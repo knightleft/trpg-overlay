@@ -92,6 +92,11 @@ body.output #editor{display:none}
 #p-kp .kav{flex:none;width:80px;height:80px;border-radius:50%;background:var(--chip) center/cover no-repeat;border:2px solid var(--sec);display:grid;place-items:center;font-size:40px;box-shadow:0 0 18px color-mix(in srgb,var(--acc) 55%,transparent)}
 #p-kp .kn{font-size:28px;font-family:Cinzel,"Noto Serif TC",serif}
 #p-kp .ks{font-family:Cinzel,serif;letter-spacing:3px;color:var(--dim);font-size:13px}
+/* 主持人放在標題列時（時間空位左邊） */
+#kp-bar{flex:none;display:flex;align-items:center;gap:12px;position:relative}
+#kp-bar .kav{flex:none;width:64px;height:64px;border-radius:50%;background:var(--chip) center/cover no-repeat;border:2px solid var(--sec);display:grid;place-items:center;font-size:30px;box-shadow:0 0 14px color-mix(in srgb,var(--acc) 55%,transparent)}
+#kp-bar .kn{font-size:22px;font-family:Cinzel,"Noto Serif TC",serif;white-space:nowrap}
+#kp-bar .ks{font-family:Cinzel,serif;letter-spacing:2px;color:var(--dim);font-size:11px;white-space:nowrap}
 
 /* 劇情 */
 /* 劇情畫面挖空：只留外框，裡面透明，OBS 放在下面的圖片／畫面會透出來 */
@@ -178,7 +183,7 @@ html:has(body.output),body.output,body.output #wrap{background:transparent!impor
 #voiceLayer{z-index:2}
 #sbLayer{z-index:3}
 #sbLayer,#voiceLayer{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0;pointer-events:none;overflow:hidden}
-/* 語音：Reactive 單人頭像當作角色格（主持人格）的背景，裁切在格子框線內，OBS 輸出畫面也有 */
+/* 語音：Reactive 單人頭像（角色放在玩家卡、主持人放在圓形頭像框），裁切在框內，OBS 輸出畫面也有 */
 #voiceLayer .vbox{position:absolute;overflow:hidden}
 #voiceLayer .vbox iframe{position:absolute;border:0;background:transparent;transform-origin:center;color-scheme:normal}
 /* 玩家名稱：直書，疊在 Reactive 圖的左側（顏色變數由 applyTheme 設到 #voiceLayer） */
@@ -234,7 +239,7 @@ body.output #sbLayer{display:none}
 <script src="statusbar/pcfonts.v1.js"></script>
 <script>
 // 版號：每次有小功能改動 +0.01；單純改錯字或微調同一件事不用加
-const VERSION = '1.04';
+const VERSION = '1.05';
 const KEY = 'trpg-overlay-v1';
 const OUTPUT = new URLSearchParams(location.search).get('view') === 'output';
 // OBS 瀏覽器來源讀不到 Chrome 的存檔，所以設定直接壓縮編在網址 #s= 後面（「複製 OBS 網址」產生）
@@ -283,7 +288,8 @@ const DEFAULT = {
   barCfg: { tagGap: 120 },   // 標題列：標題與 Hashtag 的距離 px
   marquee: { show: true, height: 44 },   // 跑馬燈空格（疊在 VTuber 框內下緣）
   vt: { height: 420 },   // VTuber 格高度
-  kp: { show: false, name: '主持人', sub: 'GAME MASTER', avatar: '', icon: '🐙', voice: '', voiceZoom: 100, voiceX: 0, voiceY: 0, voiceAlpha: 100 },
+  // pos：主持人放在哪裡（col＝角色欄下方、bar＝標題列右側）
+  kp: { show: false, pos: 'col', name: '主持人', sub: 'GAME MASTER', avatar: '', icon: '🐙', voice: '', voiceZoom: 100, voiceX: 0, voiceY: 0, voiceAlpha: 100 },
   notes: '小鎮的異常氣味\n失蹤的鎮民\n教堂地下室的聲音\n奇怪的符號',
   charsBg: { img: '', opacity: 50, fit: 'contain', zoom: 100, x: 0, y: 0 },
   vtBg: { img: '', opacity: 50, fit: 'contain', zoom: 100, x: 0, y: 0 },
@@ -305,7 +311,7 @@ function fixState(s) {
   for (const k of ['charsBg', 'vtBg', 'ccf', 'scene', 'talk', 'marquee', 'vt', 'kp', 'labels', 'notesPanel', 'barCfg']) s[k] = { ...DEFAULT[k], ...s[k] };
   s.labels = Object.fromEntries(Object.entries(DEFAULT.labels).map(([k, v]) => [k, { ...v, ...s.labels[k] }]));   // 新增的標題也補上預設
   s.sb = s.sb ? M.normalize(s.sb) : defaultSb();
-  if (Array.isArray(s.characters)) s.characters = s.characters.map(c => ({ sub: '', ccf: '', player: '', voice: '', voiceZoom: 100, voiceX: 0, voiceY: 0, ...c }));   // 舊版共用的語音頭像設定分給每個角色
+  if (Array.isArray(s.characters)) s.characters = s.characters.map(c => ({ sub: '', ccf: '', player: '', voice: '', voiceZoom: 100, voiceX: 0, voiceY: 0, ...c }));   // 補上新欄位的預設值
   delete s._v;
   // 清掉已經拿掉的功能留下的欄位（存檔與 OBS 網址都會變小）
   delete s.voice;
@@ -411,6 +417,9 @@ function applyPanelBg(st) {
     el.style.transform = `translate(${Number(b.x) || 0}%, ${Number(b.y) || 0}%) scale(${(Number(b.zoom) || 100) / 100})`;
   }
 }
+// 主持人：圓形頭像（有 Reactive 時留空給它）＋名稱＋副標
+const kpInner = kp => `${voiceUrl(kp) ? '<div class="kav"></div>' : `<div class="kav" style='${bg(kp.avatar)}'>${kp.avatar ? '' : esc(kp.icon)}</div>`}`
+  + `<div><div class="kn">${esc(kp.name)}</div><div class="ks">${esc(kp.sub)}</div></div>`;
 // 劇情畫面右上角的資訊牌
 const SINFO_MAX = 5;
 const sinfoLines = sc => Array.from({ length: Math.min(SINFO_MAX, Math.max(1, Number(sc.lines) || 1)) }, (_, i) => i + 1);
@@ -442,7 +451,7 @@ function render() {
   st.innerHTML = `
   <div class="col">
     <div class="panel" id="p-chars">${panelBg('charsBg')}<div class="ph"><div class="t">角色狀態</div><div class="e">CHARACTERS</div></div>${charsHtml}</div>
-    ${s.kp.show ? `<div class="panel" id="p-kp">${voiceUrl(s.kp) ? '<div class="kav"></div>' : `<div class="kav" style='${bg(s.kp.avatar)}'>${s.kp.avatar ? '' : esc(s.kp.icon)}</div>`}<div><div class="kn">${esc(s.kp.name)}</div><div class="ks">${esc(s.kp.sub)}</div></div></div>` : ""}
+    ${s.kp.show && s.kp.pos !== 'bar' ? `<div class="panel" id="p-kp">${kpInner(s.kp)}</div>` : ''}
   </div>
   <div class="col">
     <div class="panel" id="p-scene">
@@ -463,14 +472,15 @@ function render() {
     <div><div class="ttl">${esc(s.title)}</div><div class="stl">${esc(s.subtitle)}</div></div>
     <div class="badge tagb" style="--tag-gap:${Math.max(26, Number(s.barCfg.tagGap) || 120)}px">HASHTAG</div><div class="tags">${tags}</div>
     <div class="sp"></div>
+    ${s.kp.show && s.kp.pos === 'bar' ? `<div id="kp-bar">${kpInner(s.kp)}</div>` : ''}
     <div class="time-slot"></div>
   </div>
 `;
   applyPanelBg(st);
   updateMarqInfo(st);
-  const kpEl = st.querySelector('#p-kp');
-  const kav = kpEl?.querySelector('.kav');
-  kpBox = kav ? { x: kpEl.offsetLeft + kpEl.clientLeft + kav.offsetLeft + kav.clientLeft, y: kpEl.offsetTop + kpEl.clientTop + kav.offsetTop + kav.clientTop, w: kav.clientWidth, h: kav.clientHeight } : null;
+  const kav = st.querySelector('#p-kp .kav, #kp-bar .kav');
+  if (kav) { const p = posInStage(kav, st); kpBox = { x: p.x + kav.clientLeft, y: p.y + kav.clientTop, w: kav.clientWidth, h: kav.clientHeight }; }
+  else kpBox = null;
   layoutSlots(st);
   applyHoles(st);
   syncPreviews();
@@ -503,6 +513,16 @@ function updateMarqInfo(st) {
   out.innerHTML = `跑馬燈區域（框線內側）：位置 <b>${vt.offsetLeft + vt.clientLeft + el.offsetLeft + el.clientLeft}, ${vt.offsetTop + vt.clientTop + el.offsetTop + el.clientTop}</b>　大小 <b>${el.clientWidth} × ${el.clientHeight}</b>`;
 }
 
+// 元素在 1920×1080 畫面上的位置（border-box 左上角；用版面座標，不受預覽縮放影響）
+function posInStage(el, st) {
+  let x = 0, y = 0;
+  for (; el && el !== st; el = el.offsetParent) {
+    x += el.offsetLeft; y += el.offsetTop;
+    if (el.offsetParent && el.offsetParent !== st) { x += el.offsetParent.clientLeft; y += el.offsetParent.clientTop; }
+  }
+  return { x, y };
+}
+
 /* ---------- CCFOLIA 角色格 ---------- */
 // slotInfo[i] = OBS 上該角色瀏覽器來源的擺法（1920×1080 座標）：來源尺寸 w×h、縮放 k、左上角 x,y
 let slotInfo = [];
@@ -533,14 +553,7 @@ function layoutSlots(st) {
     return { ...sz, k, cardW, availW: innerW - (card ? cardW + CARD_GAP : 0) };
   });
   // 高度都定好之後再量位置（用版面座標，不受預覽縮放影響）
-  const posIn = el => {
-    let x = 0, y = 0;
-    for (; el && el !== st; el = el.offsetParent) {
-      x += el.offsetLeft; y += el.offsetTop;
-      if (el.offsetParent && el.offsetParent !== st) { x += el.offsetParent.clientLeft; y += el.offsetParent.clientTop; }
-    }
-    return { x, y };
-  };
+  const posIn = el => posInStage(el, st);
   slotInfo = slots.map((el, i) => {
     const p = posIn(el), f = fits[i], pi = el.querySelector('.pimg');
     const pp = pi && posIn(pi);
@@ -933,12 +946,12 @@ function charBlock(c, i) {
       <div class="char-h"><span>#${i + 1} ${esc(c.name)}</span>
         <button data-act="up" data-i="${i}">↑</button><button data-act="down" data-i="${i}">↓</button><button data-act="del" data-i="${i}">刪除</button></div>
       <div class="row"><div>${txt('名字（寫進 CSS）', `characters.${i}.name`)}</div><div class="nf"><label class="f">角色顏色</label><input type="color" data-path="characters.${i}.color" value="${esc(c.color)}"></div></div>
-      ${txt('副標題（顯示在名字下面，可不填）', `characters.${i}.sub`, '例：記者 / HO2 / PL 小明')}
+      ${txt('副標題（顯示在名字下面，可不填）', `characters.${i}.sub`, '例：職業 / HO2 / PL 玩家名')}
       ${txt('CCFOLIA 角色 ID 或棋子網址', `characters.${i}.ccf`, '棋子按右鍵 →「Copy Id (for dev)」')}
       <p class="hint" style="color:#ffb86b;margin:2px 0 0" data-note="${i}"></p>
       <div class="charbtns"><button class="primary" data-copy="css" data-i="${i}">複製 CSS</button><button data-copy="url" data-i="${i}">複製 CCFOLIA 網址</button></div>
       <div class="obsline" data-obs="${i}"></div>
-      ${state.ccf.card.show ? txt('玩家名稱（直書顯示在玩家卡上，可不填）', `characters.${i}.player`, '例：さけこ。') + voiceFields(i, `characters.${i}`, c)
+      ${state.ccf.card.show ? txt('玩家名稱（直書顯示在玩家卡上，可不填）', `characters.${i}.player`, '例：玩家名稱') + voiceFields(i, `characters.${i}`, c)
         : '<p class="hint">玩家卡已關閉（在上面的「玩家卡」打開後，可以填玩家名稱與 Reactive）。</p>'}
     </div>`;
 }
@@ -956,8 +969,11 @@ function kpBlock(kp) {
   return `
     <div class="char">
       <div class="char-h"><span>🐙 主持人</span></div>
-      <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer"><input type="checkbox" data-path="kp.show" ${kp.show ? 'checked' : ''}>在畫面上顯示主持人格子（在「角色狀態」框下面）</label>
-      <p class="hint">不勾的時候，左欄的「角色狀態」框會往下延伸補滿空間。</p>
+      <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer"><input type="checkbox" data-path="kp.show" ${kp.show ? 'checked' : ''}>在畫面上顯示主持人</label>
+      ${kp.show ? `<label class="f">位置</label>
+      <div class="seg">${[['col', '角色欄下方'], ['bar', '標題列右側']].map(([v, t]) => `<button data-kppos="${v}" class="${(kp.pos === 'bar' ? 'bar' : 'col') === v ? 'on' : ''}">${t}</button>`).join('')}</div>
+      <p class="hint">${kp.pos === 'bar' ? '放在標題列、時間空位的左邊，左欄全部留給角色。標題很長時標題列可能會擠，看一下預覽。' : '放在左欄「角色狀態」框的下面。'}</p>`
+        : '<p class="hint">不顯示時，左欄的「角色狀態」框會往下延伸補滿空間。</p>'}
       <div class="row"><div>${txt('名稱', 'kp.name')}</div><div>${txt('副標', 'kp.sub')}</div><div>${txt('圖示', 'kp.icon')}</div></div>
       ${img('主持人頭像（可不填）', 'kp.avatar')}
       ${voiceFields('kp', 'kp', kp)}
@@ -1035,7 +1051,7 @@ function buildEditor() {
     </div></details>
 
     <details data-k="vt"><summary>🌙 VTuber 區</summary><div class="sec">
-      ${txt('頂部文字（自由填寫，例如 Twitter 帳號、KP 染香；留空就隱藏）', 'twitter')}
+      ${txt('頂部文字（自由填寫，例如 Twitter 帳號、KP 名稱；留空就隱藏）', 'twitter')}
       ${pxRange('VTuber 格高度', 'vt.height', 240, 480)}
       ${bgControls('背景圖', 'vtBg')}
     </div></details>
@@ -1068,7 +1084,7 @@ function buildEditor() {
         <li>角色的來源放在跑團介面的<b>上面</b>，右鍵 →「變形 → 編輯變形」，填入顯示的<b>位置</b>與<b>大小</b>，就會剛好落在角色格裡（「邊界框類型」保持「無邊界框」）。</li>
         <li>畫面一片空白時：來源右鍵 →「互動」，登入 CCFOLIA 並進入房間（做過一次就會記住）。</li>
         <li>第二位角色開始請<b>重新「新增來源」</b>建立，不要用「貼上（參照）」，否則全部都會變成同一個角色。</li>
-        <li>語音頭像（Reactive）是嵌在跑團介面裡的角色格背景，OBS 不用另外加來源；先到 <a class="ext" href="https://reactive.fugi.tech/" target="_blank" rel="noopener">Reactive ↗</a> 複製每個人的單人連結貼到角色欄位就好。</li>
+        <li>語音頭像（Reactive）嵌在跑團介面裡（角色在玩家卡、主持人在圓形頭像框），OBS 不用另外加來源；先到 <a class="ext" href="https://reactive.fugi.tech/" target="_blank" rel="noopener">Reactive ↗</a> 複製每個人的單人連結貼到角色欄位就好。</li>
       </ol>
       <p class="hint">CCFOLIA 角色「狀態」的排列順序對應第 1、2、3 條的顏色（例：HP → MP → SAN）。聊天室輸入 <code>:HP-3</code>、<code>:SAN=45</code> 之類的指令，OBS 也會立刻更新。改了狀態條樣式、人數或角色的名字／副標題之後，要重新複製各角色的 CSS、核對尺寸與位置，跑團介面本身也要重新「複製 OBS 網址」或「儲存 OBS 檔案」（角色格會跟著變）。</p>
     </div></details>`;
@@ -1125,7 +1141,10 @@ ed.addEventListener('click', e => {
   const t = e.target.closest('button');
   if (!t) return;
   const cs = state.characters;
-  if (t.dataset.sinfo) {
+  if (t.dataset.kppos) {
+    state.kp.pos = t.dataset.kppos;
+    buildEditor(); commit();
+  } else if (t.dataset.sinfo) {
     const [k, v] = t.dataset.sinfo.split(':');
     state.scene[k] = k === 'lines' ? Number(v) : v;
     buildEditor(); commit();
