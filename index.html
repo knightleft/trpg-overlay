@@ -38,7 +38,8 @@ textarea{resize:vertical;min-height:80px;line-height:1.5}
 .char-h span{flex:1}
 .char-h button{padding:2px 7px;font-size:12px}
 .hint{color:var(--ed-dim);font-size:11.5px;line-height:1.5;margin:4px 0}
-.hint a.jump{color:#c9b6f5}
+.hint a.jump,a.ext{color:#c9b6f5}
+label.f a.ext{float:right;font-size:11.5px}
 .hint code{background:#0f0c16;padding:0 4px;border-radius:3px;color:#c9b6f5}
 #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#3a2456;color:#fff;padding:8px 16px;border-radius:8px;opacity:0;transition:.3s;pointer-events:none;z-index:99;font-family:sans-serif;font-size:13px}
 #toast.show{opacity:1}
@@ -835,7 +836,8 @@ function charBlock(c, i) {
     </div>`;
 }
 // Reactive 語音頭像的欄位（角色與主持人共用）
-const voiceFields = (id, base, c, where) => `${txt('語音：Reactive 單人連結（可不填）', `${base}.voice`, 'https://reactive.fugi.tech/individual/…')}
+const REACTIVE_HOME = 'https://reactive.fugi.tech/';
+const voiceFields = (id, base, c, where) => `${txt(`語音：Reactive 單人連結（可不填）<a class="ext" href="${REACTIVE_HOME}" target="_blank" rel="noopener">開啟 Reactive ↗</a>`, `${base}.voice`, 'https://reactive.fugi.tech/individual/…')}
       <p class="hint" style="margin:2px 0 0" data-voicenote="${id}"></p>
       ${voiceUrl(c) ? pxRange(`語音頭像：左右位置（距離${where}左邊）`, `${base}.voiceX`, 0, 380) + pxRange('語音頭像：大小', `${base}.voiceSize`, 30, 160)
         + `<div class="charbtns"><button data-copy="voice" data-i="${id}">複製 Reactive 網址</button></div><div class="obsline" data-voiceobs="${id}"></div>` : ''}`;
@@ -942,7 +944,7 @@ function buildEditor() {
         <li>角色的來源放在跑團介面的<b>上面</b>，右鍵 →「變形 → 編輯變形」，填入顯示的<b>位置</b>與<b>大小</b>，就會剛好落在角色格裡（「邊界框類型」保持「無邊界框」）。</li>
         <li>畫面一片空白時：來源右鍵 →「互動」，登入 CCFOLIA 並進入房間（做過一次就會記住）。</li>
         <li>第二位角色開始請<b>重新「新增來源」</b>建立，不要用「貼上（參照）」，否則全部都會變成同一個角色。</li>
-        <li>有語音頭像的角色（主持人也一樣）：再「新增來源 → 瀏覽器」，網址貼「複製 Reactive 網址」，寬高與位置照角色底下的 <b>Reactive 瀏覽器來源</b>數字填。放在該角色 CCFOLIA 來源的<b>上面</b>（不會被狀態條蓋住），兩個來源選起來按右鍵「群組選取的項目」，之後就會一起移動。</li>
+        <li>有語音頭像的角色（主持人也一樣）：先到 <a class="ext" href="https://reactive.fugi.tech/" target="_blank" rel="noopener">Reactive ↗</a> 複製每個人的單人連結，再「新增來源 → 瀏覽器」，網址貼「複製 Reactive 網址」，寬高與位置照角色底下的 <b>Reactive 瀏覽器來源</b>數字填。放在該角色 CCFOLIA 來源的<b>上面</b>（不會被狀態條蓋住），兩個來源選起來按右鍵「群組選取的項目」，之後就會一起移動。</li>
       </ol>
       <p class="hint">CCFOLIA 角色「狀態」的排列順序對應第 1、2、3 條的顏色（例：HP → MP → SAN）。聊天室輸入 <code>:HP-3</code>、<code>:SAN=45</code> 之類的指令，OBS 也會立刻更新。改了狀態條樣式或人數之後，要重新複製各角色的 CSS、核對尺寸與位置，跑團介面本身也要重新「複製 OBS 網址」或「儲存 OBS 檔案」（角色格會跟著變）。</p>
     </div></details>`;
