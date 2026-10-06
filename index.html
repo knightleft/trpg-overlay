@@ -64,7 +64,7 @@ body.output #editor{display:none}
   --soft:color-mix(in srgb,var(--text) 86%,var(--bg));
   color:var(--text);font-family:"Noto Serif TC",serif;
   display:grid;padding:16px;gap:14px;
-  grid-template-columns:400px 1fr 400px;grid-template-rows:1fr 100px;
+  grid-template-columns:var(--colw,400px) 1fr 400px;grid-template-rows:1fr 100px;
 }
 #stage[data-mode=light]{--hp:#c8283f;--mp:#2f5fd0;--san:#13915a;--shadow:rgba(60,40,90,.16)}
 .col{display:flex;flex-direction:column;gap:14px;min-height:0}
@@ -166,6 +166,12 @@ html:has(body.output),body.output,body.output #wrap{background:transparent!impor
 
 /* ================= CCFOLIA 狀態條 ================= */
 /* 角色格（OBS 疊 CCFOLIA 瀏覽器來源的位置） */
+/* 玩家卡：角色格左邊，直書的玩家名字＋Reactive 圖（寬度由 JS 依角色格高度決定） */
+.pcard{position:absolute;left:6px;top:6px;bottom:6px;display:flex;border:1px solid color-mix(in srgb,var(--sec) 70%,transparent);
+  background:color-mix(in srgb,var(--bg) 80%,var(--pri) 8%);overflow:hidden}
+.pname{flex:none;writing-mode:vertical-rl;padding:6px 3px;font-size:15px;letter-spacing:2px;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  color:var(--text);background:color-mix(in srgb,var(--bg) 70%,transparent);border-right:1px solid var(--line2)}
+.pimg{flex:1;min-width:0;position:relative}
 .slot{flex:none;box-sizing:border-box;padding:6px;position:relative;
   border:1px solid var(--line2);background:linear-gradient(90deg,color-mix(in srgb,var(--chip) 60%,transparent),color-mix(in srgb,var(--p2) 50%,transparent))}
 /* 編輯器預覽：疊在畫面上的 CCFOLIA 模擬畫面（OBS 輸出畫面沒有這層） */
@@ -226,7 +232,7 @@ body.output #sbLayer{display:none}
 <script src="statusbar/pcfonts.v1.js"></script>
 <script>
 // 版號：每次有小功能改動 +0.01；單純改錯字或微調同一件事不用加
-const VERSION = '1.03';
+const VERSION = '1.04';
 const KEY = 'trpg-overlay-v1';
 const OUTPUT = new URLSearchParams(location.search).get('view') === 'output';
 // OBS 瀏覽器來源讀不到 Chrome 的存檔，所以設定直接壓縮編在網址 #s= 後面（「複製 OBS 網址」產生）
@@ -259,13 +265,14 @@ const DEFAULT = {
   // a = 前段（次色）、b = 後段（文字色），1～5 是第幾行（最多 SINFO_MAX 行）；sizeA / sizeB 是前段 / 後段的字體大小
   scene: { lines: 2, a1: '時間', b1: '1925年10月3日　深夜', a2: '地點', b2: '阿卡姆・米斯卡托尼克大學', a3: '', b3: '', a4: '', b4: '', a5: '', b5: '', deco: 'front', sizeA: 16, sizeB: 22 },
   characters: [
-    { name: '艾莉亞', color: '#c084fc', sub: '', ccf: '', voice: '', voiceZoom: 100, voiceX: 0, voiceY: 0, voiceAlpha: 100 },
-    { name: '雷恩', color: '#f87171', sub: '', ccf: '', voice: '', voiceZoom: 100, voiceX: 0, voiceY: 0, voiceAlpha: 100 },
-    { name: '莉薇婭', color: '#fb7185', sub: '', ccf: '', voice: '', voiceZoom: 100, voiceX: 0, voiceY: 0, voiceAlpha: 100 },
-    { name: '凱爾', color: '#60a5fa', sub: '', ccf: '', voice: '', voiceZoom: 100, voiceX: 0, voiceY: 0, voiceAlpha: 100 },
+    { name: '艾莉亞', color: '#c084fc', sub: '', ccf: '', player: '', voice: '', voiceX: 0, voiceY: 0 },
+    { name: '雷恩', color: '#f87171', sub: '', ccf: '', player: '', voice: '', voiceX: 0, voiceY: 0 },
+    { name: '莉薇婭', color: '#fb7185', sub: '', ccf: '', player: '', voice: '', voiceX: 0, voiceY: 0 },
+    { name: '凱爾', color: '#60a5fa', sub: '', ccf: '', player: '', voice: '', voiceX: 0, voiceY: 0 },
   ],
   // sizes: 編輯器量到的各角色瀏覽器來源尺寸，OBS 輸出畫面靠它排出一樣的角色格
-  ccf: { room: '', followTheme: true, sizes: [] },
+  // colW：左欄（角色狀態）寬度；card：玩家卡（show 開關、ratio 卡片寬度＝高度的幾 %）
+  ccf: { room: '', followTheme: true, sizes: [], colW: 520, card: { show: true, ratio: 75 } },
   sb: defaultSb(),
   talk: { show: true },   // 場外（玩家閒聊）區；不顯示時場內延伸成一整條
   // 可自訂的區塊標題：t = 中文標題、e = 下方英文小字
@@ -296,7 +303,7 @@ function fixState(s) {
   for (const k of ['charsBg', 'vtBg', 'ccf', 'scene', 'talk', 'marquee', 'vt', 'kp', 'labels', 'notesPanel', 'barCfg']) s[k] = { ...DEFAULT[k], ...s[k] };
   s.labels = Object.fromEntries(Object.entries(DEFAULT.labels).map(([k, v]) => [k, { ...v, ...s.labels[k] }]));   // 新增的標題也補上預設
   s.sb = s.sb ? M.normalize(s.sb) : defaultSb();
-  if (Array.isArray(s.characters)) s.characters = s.characters.map(c => ({ sub: '', ccf: '', voice: '', voiceZoom: 100, voiceX: 0, voiceY: 0, voiceAlpha: 100, ...c }));   // 舊版共用的語音頭像設定分給每個角色
+  if (Array.isArray(s.characters)) s.characters = s.characters.map(c => ({ sub: '', ccf: '', player: '', voice: '', voiceX: 0, voiceY: 0, ...c }));   // 舊版共用的語音頭像設定分給每個角色
   delete s._v;
   // 清掉已經拿掉的功能留下的欄位（存檔與 OBS 網址都會變小）
   delete s.voice;
@@ -307,7 +314,7 @@ function fixState(s) {
     delete c.voiceSize;
   }
   for (const k of ['text', 'bg', 'time', 'place', 'line1', 'line2', 'size', 'size1', 'size2']) delete s.scene[k];
-  if (Array.isArray(s.characters)) for (const c of s.characters) for (const k of ['icon', 'avatar', 'hp', 'hpMax', 'mp', 'mpMax', 'san', 'sanMax']) delete c[k];
+  if (Array.isArray(s.characters)) for (const c of s.characters) for (const k of ['voiceZoom', 'voiceAlpha', 'icon', 'avatar', 'hp', 'hpMax', 'mp', 'mpMax', 'san', 'sanMax']) delete c[k];
   return Object.assign(structuredClone(DEFAULT), s);
 }
 function load() {
@@ -368,8 +375,8 @@ async function saveObsFile() {
 async function packState() {
   const o = structuredClone(state);
   delete o.sb;                                              // 輸出畫面用不到狀態條設定
-  // 人數與語音背景（CCFOLIA ID、顏色只給編輯器用）
-  o.characters = o.characters.map(c => ({ name: c.name, voice: c.voice, voiceZoom: c.voiceZoom, voiceX: c.voiceX, voiceY: c.voiceY, voiceAlpha: c.voiceAlpha }));
+  // 人數與玩家卡（CCFOLIA ID、顏色只給編輯器用）
+  o.characters = o.characters.map(c => ({ name: c.name, player: c.player, voice: c.voice, voiceX: c.voiceX, voiceY: c.voiceY }));
   const stream = new Blob([JSON.stringify(o)]).stream().pipeThrough(new CompressionStream('deflate-raw'));
   const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
   let bin = '';
@@ -419,9 +426,13 @@ function render() {
   const s = state;
   const st = $('#stage');
   applyTheme(st);
+  st.style.setProperty('--colw', Math.max(360, Number(s.ccf.colW) || 520) + 'px');
 
   // 角色格留空，給 OBS 疊 CCFOLIA 瀏覽器來源
-  const charsHtml = `<div id="chars">${s.characters.map((c, i) => `<div class="slot" data-i="${i}"></div>`).join('')}</div>`;
+  // 每格左邊可以放玩家卡（玩家名字＋Reactive），右邊給 CCFOLIA 狀態條
+  const card = s.ccf.card.show;
+  const charsHtml = `<div id="chars">${s.characters.map((c, i) => `<div class="slot" data-i="${i}">${card
+    ? `<div class="pcard">${String(c.player || '').trim() ? `<div class="pname">${esc(c.player)}</div>` : ''}<div class="pimg"></div></div>` : ''}</div>`).join('')}</div>`;
 
   const notesHtml = s.notes.split('\n').filter(l => l.trim()).slice(0, 5).map(l => `<div>${esc(l)}</div>`).join('');
   const tags = s.hashtags.split(/\s+/).filter(Boolean).map(t => `<span>${esc(t)}</span>`).join('');
@@ -508,11 +519,16 @@ function layoutSlots(st) {
   const gap = parseFloat(cs.rowGap) || 0;
   const innerH = box.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
   const maxH = (innerH - gap * (n - 1)) / n - SLOT_PAD * 2 - 2;
+  // 有玩家卡時：卡片高度＝狀態條高度，寬度＝高度 × ratio，狀態條排在卡片右邊
+  const card = state.ccf.card.show, ratio = card ? Math.max(0.3, Math.min(1, (Number(state.ccf.card.ratio) || 75) / 100)) : 0, CARD_GAP = 6;
   const fits = slots.map((el, i) => {
-    const sz = sizeOf(i), availW = el.clientWidth - SLOT_PAD * 2;
-    const k = Math.min(1, availW / sz.w, maxH / sz.h);
+    const sz = sizeOf(i), innerW = el.clientWidth - SLOT_PAD * 2;
+    const k = Math.min(1, (innerW - (card ? CARD_GAP : 0)) / (sz.w + sz.h * ratio), maxH / sz.h);
+    const cardW = card ? Math.round(sz.h * k * ratio) : 0;
     el.style.height = `${sz.h * k + SLOT_PAD * 2 + 2}px`;
-    return { ...sz, k, availW };
+    const pc = el.querySelector('.pcard');
+    if (pc) pc.style.width = cardW + 'px';
+    return { ...sz, k, cardW, availW: innerW - (card ? cardW + CARD_GAP : 0) };
   });
   // 高度都定好之後再量位置（用版面座標，不受預覽縮放影響）
   const posIn = el => {
@@ -524,11 +540,13 @@ function layoutSlots(st) {
     return { x, y };
   };
   slotInfo = slots.map((el, i) => {
-    const p = posIn(el), f = fits[i];
+    const p = posIn(el), f = fits[i], pi = el.querySelector('.pimg');
+    const pp = pi && posIn(pi);
     return {
       w: f.w, h: f.h, k: f.k,
-      inner: { x: p.x + el.clientLeft, y: p.y + el.clientTop, w: el.clientWidth, h: el.clientHeight },   // 框線內側（語音背景用）
-      x: Math.round(p.x + el.clientLeft + SLOT_PAD + (f.availW - f.w * f.k) / 2),
+      pimg: pi ? { x: pp.x + pi.clientLeft, y: pp.y + pi.clientTop, w: pi.clientWidth, h: pi.clientHeight } : null,   // 玩家卡放 Reactive 的範圍
+      // 有玩家卡時狀態條緊接在卡片右邊，沒有時置中
+      x: Math.round(p.x + el.clientLeft + SLOT_PAD + (card ? f.cardW + CARD_GAP : (f.availW - f.w * f.k) / 2)),
       y: Math.round(p.y + el.clientTop + SLOT_PAD),
     };
   });
@@ -627,14 +645,14 @@ function syncPreviews() {
   }
 }
 
-/* ---------- 語音：Reactive 單人頭像當作格子背景 ----------
-   跟「角色狀態背景圖」一樣：嵌在角色格（主持人格）框線內，墊在 CCFOLIA 狀態條下面，可調放大縮小、左右、上下、濃度。
-   iframe 放在固定的一層（不跟著 render 重建），才不會每改一次設定就重新連線。 */
+/* ---------- 語音：Reactive 單人頭像 ----------
+   角色：放在角色格左邊的玩家卡裡（可調上下左右）；主持人：放在圓形頭像框裡（可調縮放、上下左右、濃度）。
+   都裁切在框內；iframe 放在固定的一層（不跟著 render 重建），才不會每改一次設定就重新連線。 */
 // id：角色是索引數字，主持人是 'kp'
 const voiceFrames = new Map();
 let kpBox = null;   // 主持人圓形頭像框的內側（沒顯示時是 null）
 const voiceSrc = id => id === 'kp' ? state.kp : state.characters[id];
-const voiceBox = id => id === 'kp' ? (state.kp.show ? kpBox : null) : slotInfo[id]?.inner;
+const voiceBox = id => id === 'kp' ? (state.kp.show ? kpBox : null) : slotInfo[id]?.pimg;
 function syncVoice() {
   const layer = $('#voiceLayer'), ids = [...state.characters.keys(), 'kp'], keys = ids.map(String);
   for (const [key, el] of voiceFrames) if (!keys.includes(key)) { el.remove(); voiceFrames.delete(key); }
@@ -656,7 +674,7 @@ function syncVoice() {
     if (fr.dataset.src !== url) { fr.dataset.src = url; fr.src = url; }   // 只在網址改變時重新載入
     // 主持人的圓形遮罩，角色格是方形
     Object.assign(box.style, { left: b.x + 'px', top: b.y + 'px', width: b.w + 'px', height: b.h + 'px', borderRadius: id === 'kp' ? '50%' : '0' });
-    const zoom = (Number(c.voiceZoom) || 100) / 100, alpha = Math.max(0, Math.min(100, c.voiceAlpha ?? 100)) / 100;
+    const kp = id === 'kp', zoom = kp ? (Number(c.voiceZoom) || 100) / 100 : 1, alpha = kp ? Math.max(0, Math.min(100, c.voiceAlpha ?? 100)) / 100 : 1;
     Object.assign(fr.style, { transform: `translate(${Number(c.voiceX) || 0}%, ${Number(c.voiceY) || 0}%) scale(${zoom})`, opacity: alpha });
   }
 }
@@ -898,7 +916,8 @@ function charBlock(c, i) {
       <p class="hint" style="color:#ffb86b;margin:2px 0 0" data-note="${i}"></p>
       <div class="charbtns"><button class="primary" data-copy="css" data-i="${i}">複製 CSS</button><button data-copy="url" data-i="${i}">複製 CCFOLIA 網址</button></div>
       <div class="obsline" data-obs="${i}"></div>
-      ${voiceFields(i, `characters.${i}`, c)}
+      ${state.ccf.card.show ? txt('玩家名稱（直書顯示在玩家卡上，可不填）', `characters.${i}.player`, '例：さけこ。') + voiceFields(i, `characters.${i}`, c)
+        : '<p class="hint">玩家卡已關閉（在上面的「玩家卡」打開後，可以填玩家名稱與 Reactive）。</p>'}
     </div>`;
 }
 // Reactive 語音頭像的欄位（角色與主持人共用）
@@ -908,9 +927,9 @@ const labelFields = (name, key) => `<label class="f" style="color:var(--ed-text)
       <div class="row"><input type="text" data-path="labels.${key}.t" value="${esc(state.labels[key].t)}" placeholder="中文標題"><input type="text" data-path="labels.${key}.e" value="${esc(state.labels[key].e)}" placeholder="英文小字"></div>`;
 const voiceFields = (id, base, c) => `${txt(`語音：Reactive 單人連結（可不填）<a class="ext" href="${REACTIVE_HOME}" target="_blank" rel="noopener">開啟 Reactive ↗</a>`, `${base}.voice`, 'https://reactive.fugi.tech/individual/…')}
       <p class="hint" style="margin:2px 0 0" data-voicenote="${id}"></p>
-      ${voiceUrl(c) ? range('語音背景：濃度', `${base}.voiceAlpha`, 10, 100) + range('語音背景：縮放', `${base}.voiceZoom`, 20, 300)
+      ${voiceUrl(c) ? (id === 'kp' ? range('語音頭像：濃度', `${base}.voiceAlpha`, 10, 100) + range('語音頭像：縮放', `${base}.voiceZoom`, 20, 300) : '')
         + `<div class="row"><div>${range('左右', `${base}.voiceX`, -100, 100)}</div><div>${range('上下', `${base}.voiceY`, -100, 100)}</div></div>`
-        + `<button data-voicereset="${id}" style="margin-top:4px">重設位置與縮放</button>` : ''}`;
+        + `<button data-voicereset="${id}" style="margin-top:4px">重設位置${id === 'kp' ? '與縮放' : ''}</button>` : ''}`;
 function kpBlock(kp) {
   return `
     <div class="char">
@@ -959,6 +978,10 @@ function buildEditor() {
     <details data-k="chars"><summary>🧙 角色（${s.characters.length}）</summary><div class="sec">
       <p class="hint">每個角色一格空白，給 OBS 疊上 CCFOLIA 的「瀏覽器來源」，HP/MP/SAN 會跟著 CCFOLIA 自動更新。右邊預覽格子裡的狀態條只是用範例數值、範例頭像示範樣式，OBS 畫面上只有空格。</p>
       ${txt('CCFOLIA 房間網址', 'ccf.room', 'https://ccfolia.com/rooms/…')}
+      ${pxRange('左欄（角色狀態）寬度', 'ccf.colW', 400, 640)}
+      <p class="hint">左欄加寬時，劇情畫面會等比例縮小（維持 16:9），下方的場內／場外會變高。改了寬度要重新核對 OBS 裡各來源的位置。</p>
+      <label style="display:flex;align-items:center;gap:6px;margin:8px 0 2px;cursor:pointer"><input type="checkbox" data-path="ccf.card.show" ${s.ccf.card.show ? 'checked' : ''}>每格左邊顯示玩家卡（玩家名字＋Reactive）</label>
+      ${s.ccf.card.show ? range('玩家卡寬度（佔高度的比例，100% 為正方形）', 'ccf.card.ratio', 50, 100) : ''}
       ${bgControls('角色狀態背景圖', 'charsBg')}
       ${kpBlock(s.kp)}
       ${chars}<button id="addChar">＋ 新增角色</button>
@@ -1038,7 +1061,7 @@ function updateCharNotes() {
     el.style.color = '#ffb86b';
     el.textContent = !v ? '' : !voiceUrl(c) ? '要貼 https://reactive.fugi.tech/ 開頭的網址。'
       : (el.style.color = '', isKp ? 'Reactive 會放在主持人的圓形頭像框裡（圓形裁切，取代圖示與頭像），OBS 不用另外加來源。'
-        : 'Reactive 會當作這個角色格的背景，墊在狀態條下面、不會超出格子，OBS 不用另外加來源。說話時的反應（換圖、跳動、變亮）請在 Reactive 後台設定。');
+        : 'Reactive 會放在這格左邊的玩家卡裡，OBS 不用另外加來源。說話時變亮、不跳動等反應請在 Reactive 後台設定。');
   }
   for (const el of ed.querySelectorAll('[data-note]')) {
     const c = state.characters[el.dataset.note];
@@ -1053,7 +1076,7 @@ ed.addEventListener('input', e => {
   if (!p) return;
   if (t.value === '(已上傳圖片)') return;
   setPath(p, t.type === 'checkbox' ? t.checked : 'num' in t.dataset ? (t.value === '' ? '' : Number(t.value)) : t.value);
-  if (['kp.show', 'talk.show', 'marquee.show', 'notesPanel.show'].includes(p)) buildEditor();
+  if (['kp.show', 'talk.show', 'marquee.show', 'notesPanel.show', 'ccf.card.show'].includes(p)) buildEditor();
   if (p === 'ccf.followTheme') {
     if (!t.checked) applyThemeColors(state.sb);   // 取消時保留目前看到的顏色
     commit(); buildEditor(); return;
@@ -1114,7 +1137,7 @@ ed.addEventListener('click', e => {
   } else if (t.dataset.clear) {
     setPath(t.dataset.clear, ''); buildEditor(); commit();
   } else if (t.id === 'addChar') {
-    cs.push({ name: '新角色', color: '#c4b5fd', sub: '', ccf: '', voice: '', voiceZoom: 100, voiceX: 0, voiceY: 0, voiceAlpha: 100 });
+    cs.push({ name: '新角色', color: '#c4b5fd', sub: '', ccf: '', player: '', voice: '', voiceX: 0, voiceY: 0 });
     buildEditor(); commit();
   } else if (t.id === 'obsUrl') {
     obsUrl().then(url => {
@@ -1131,7 +1154,8 @@ ed.addEventListener('click', e => {
     const [key, fit] = t.dataset.fit.split(':');
     state[key].fit = fit; buildEditor(); commit();
   } else if (t.dataset.voicereset) {
-    Object.assign(voiceSrc(t.dataset.voicereset === 'kp' ? 'kp' : +t.dataset.voicereset), { voiceZoom: 100, voiceX: 0, voiceY: 0 });
+    const isKp = t.dataset.voicereset === 'kp';
+    Object.assign(voiceSrc(isKp ? 'kp' : +t.dataset.voicereset), isKp ? { voiceZoom: 100, voiceX: 0, voiceY: 0 } : { voiceX: 0, voiceY: 0 });
     buildEditor(); commit();
   } else if (t.dataset.bgreset) {
     Object.assign(state[t.dataset.bgreset], { zoom: 100, x: 0, y: 0 }); buildEditor(); commit();
