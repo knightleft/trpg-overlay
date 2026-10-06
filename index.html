@@ -167,11 +167,9 @@ html:has(body.output),body.output,body.output #wrap{background:transparent!impor
 /* ================= CCFOLIA 狀態條 ================= */
 /* 角色格（OBS 疊 CCFOLIA 瀏覽器來源的位置） */
 /* 玩家卡：角色格左邊，直書的玩家名字＋Reactive 圖（寬度由 JS 依角色格高度決定） */
-.pcard{position:absolute;left:6px;top:6px;bottom:6px;display:flex;border:1px solid color-mix(in srgb,var(--sec) 70%,transparent);
+.pcard{position:absolute;left:6px;top:6px;bottom:6px;border:1px solid color-mix(in srgb,var(--sec) 70%,transparent);
   background:color-mix(in srgb,var(--bg) 80%,var(--pri) 8%);overflow:hidden}
-.pname{flex:none;writing-mode:vertical-rl;padding:6px 3px;font-size:15px;letter-spacing:2px;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  color:var(--text);background:color-mix(in srgb,var(--bg) 70%,transparent);border-right:1px solid var(--line2)}
-.pimg{flex:1;min-width:0;position:relative}
+.pimg{position:absolute;inset:0}
 .slot{flex:none;box-sizing:border-box;padding:6px;position:relative;
   border:1px solid var(--line2);background:linear-gradient(90deg,color-mix(in srgb,var(--chip) 60%,transparent),color-mix(in srgb,var(--p2) 50%,transparent))}
 /* 編輯器預覽：疊在畫面上的 CCFOLIA 模擬畫面（OBS 輸出畫面沒有這層） */
@@ -182,7 +180,11 @@ html:has(body.output),body.output,body.output #wrap{background:transparent!impor
 #sbLayer,#voiceLayer{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0;pointer-events:none;overflow:hidden}
 /* 語音：Reactive 單人頭像當作角色格（主持人格）的背景，裁切在格子框線內，OBS 輸出畫面也有 */
 #voiceLayer .vbox{position:absolute;overflow:hidden}
-#voiceLayer .vbox iframe{position:absolute;left:0;top:0;width:100%;height:100%;border:0;background:transparent;transform-origin:center;color-scheme:normal}
+#voiceLayer .vbox iframe{position:absolute;border:0;background:transparent;transform-origin:center;color-scheme:normal}
+/* 玩家名稱：直書，疊在 Reactive 圖的左側（顏色變數由 applyTheme 設到 #voiceLayer） */
+#voiceLayer .vname{position:absolute;left:0;top:0;bottom:0;z-index:1;writing-mode:vertical-rl;padding:6px 3px;font-size:15px;letter-spacing:2px;line-height:1.1;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);background:color-mix(in srgb,var(--bg) 62%,transparent);
+  text-shadow:0 1px 2px rgba(0,0,0,.6)}
 #sbLayer iframe{position:absolute;border:0;background:transparent;transform-origin:0 0;color-scheme:normal}
 body.output #sbLayer{display:none}
 /* 編輯器：狀態條設定 */
@@ -432,7 +434,7 @@ function render() {
   // 每格左邊可以放玩家卡（玩家名字＋Reactive），右邊給 CCFOLIA 狀態條
   const card = s.ccf.card.show;
   const charsHtml = `<div id="chars">${s.characters.map((c, i) => `<div class="slot" data-i="${i}">${card
-    ? `<div class="pcard">${String(c.player || '').trim() ? `<div class="pname">${esc(c.player)}</div>` : ''}<div class="pimg"></div></div>` : ''}</div>`).join('')}</div>`;
+    ? '<div class="pcard"><div class="pimg"></div></div>' : ''}</div>`).join('')}</div>`;
 
   const notesHtml = s.notes.split('\n').filter(l => l.trim()).slice(0, 5).map(l => `<div>${esc(l)}</div>`).join('');
   const tags = s.hashtags.split(/\s+/).filter(Boolean).map(t => `<span>${esc(t)}</span>`).join('');
@@ -657,27 +659,45 @@ function syncVoice() {
   const layer = $('#voiceLayer'), ids = [...state.characters.keys(), 'kp'], keys = ids.map(String);
   for (const [key, el] of voiceFrames) if (!keys.includes(key)) { el.remove(); voiceFrames.delete(key); }
   for (const id of ids) {
-    const key = String(id), c = voiceSrc(id), url = voiceUrl(c), b = voiceBox(id);
+    const key = String(id), kp = id === 'kp', c = voiceSrc(id), url = voiceUrl(c), b = voiceBox(id);
+    const name = kp ? '' : String(c.player || '').trim();
     let box = voiceFrames.get(key);
-    if (!url || !b) { if (box) { box.remove(); voiceFrames.delete(key); } continue; }
+    if (!b || (!url && !name)) { if (box) { box.remove(); voiceFrames.delete(key); } continue; }
     if (!box) {
       box = document.createElement('div');
       box.className = 'vbox';
-      const fr = document.createElement('iframe');
-      fr.tabIndex = -1;
-      fr.setAttribute('allowtransparency', 'true');
-      box.append(fr);
       layer.append(box);
       voiceFrames.set(key, box);
     }
-    const fr = box.firstChild;
-    if (fr.dataset.src !== url) { fr.dataset.src = url; fr.src = url; }   // 只在網址改變時重新載入
-    // 主持人的圓形遮罩，角色格是方形
-    Object.assign(box.style, { left: b.x + 'px', top: b.y + 'px', width: b.w + 'px', height: b.h + 'px', borderRadius: id === 'kp' ? '50%' : '0' });
-    // 玩家卡：縮放 100% = 填滿卡片（以方形頭像計算，放大到蓋滿長邊）；主持人：100% = 完整放進圓框
-    const kp = id === 'kp', fill = kp ? 1 : Math.max(b.w, b.h) / Math.max(1, Math.min(b.w, b.h));
-    const zoom = fill * (Number(c.voiceZoom) || 100) / 100, alpha = kp ? Math.max(0, Math.min(100, c.voiceAlpha ?? 100)) / 100 : 1;
-    Object.assign(fr.style, { transform: `translate(${Number(c.voiceX) || 0}%, ${Number(c.voiceY) || 0}%) scale(${zoom})`, opacity: alpha });
+    // 主持人的圓形遮罩，玩家卡是方形
+    Object.assign(box.style, { left: b.x + 'px', top: b.y + 'px', width: b.w + 'px', height: b.h + 'px', borderRadius: kp ? '50%' : '0' });
+    // Reactive 圖
+    let fr = box.querySelector('iframe');
+    if (!url) fr?.remove();
+    else {
+      if (!fr) {
+        fr = document.createElement('iframe');
+        fr.tabIndex = -1;
+        fr.setAttribute('allowtransparency', 'true');
+        box.prepend(fr);
+      }
+      if (fr.dataset.src !== url) { fr.dataset.src = url; fr.src = url; }   // 只在網址改變時重新載入
+      // Reactive 的單人頁面會讓圖撐滿高度、靠左對齊，所以給它一個正方形的畫面並對準格子中心：
+      // 方形頭像會剛好置中、蓋滿（縮放 100% = 填滿），再依設定縮放與移動
+      const side = Math.max(b.w, b.h), zoom = (Number(c.voiceZoom) || 100) / 100;
+      const alpha = kp ? Math.max(0, Math.min(100, c.voiceAlpha ?? 100)) / 100 : 1;
+      Object.assign(fr.style, {
+        left: (b.w - side) / 2 + 'px', top: (b.h - side) / 2 + 'px', width: side + 'px', height: side + 'px',
+        transform: `translate(${Number(c.voiceX) || 0}%, ${Number(c.voiceY) || 0}%) scale(${zoom})`, opacity: alpha,
+      });
+    }
+    // 玩家名稱：疊在圖上
+    let nm = box.querySelector('.vname');
+    if (!name) nm?.remove();
+    else {
+      if (!nm) { nm = document.createElement('div'); nm.className = 'vname'; box.append(nm); }
+      if (nm.textContent !== name) nm.textContent = name;
+    }
   }
 }
 
@@ -929,7 +949,7 @@ const labelFields = (name, key) => `<label class="f" style="color:var(--ed-text)
       <div class="row"><input type="text" data-path="labels.${key}.t" value="${esc(state.labels[key].t)}" placeholder="中文標題"><input type="text" data-path="labels.${key}.e" value="${esc(state.labels[key].e)}" placeholder="英文小字"></div>`;
 const voiceFields = (id, base, c) => `${txt(`語音：Reactive 單人連結（可不填）<a class="ext" href="${REACTIVE_HOME}" target="_blank" rel="noopener">開啟 Reactive ↗</a>`, `${base}.voice`, 'https://reactive.fugi.tech/individual/…')}
       <p class="hint" style="margin:2px 0 0" data-voicenote="${id}"></p>
-      ${voiceUrl(c) ? (id === 'kp' ? range('語音頭像：濃度', `${base}.voiceAlpha`, 10, 100) + range('語音頭像：縮放', `${base}.voiceZoom`, 20, 300) : range('縮放（100% = 填滿玩家卡）', `${base}.voiceZoom`, 20, 300))
+      ${voiceUrl(c) ? (id === 'kp' ? range('語音頭像：濃度', `${base}.voiceAlpha`, 10, 100) + range('語音頭像：縮放', `${base}.voiceZoom`, 20, 300) : range('縮放（100% = 填滿玩家卡、置中）', `${base}.voiceZoom`, 20, 300))
         + `<div class="row"><div>${range('左右', `${base}.voiceX`, -100, 100)}</div><div>${range('上下', `${base}.voiceY`, -100, 100)}</div></div>`
         + `<button data-voicereset="${id}" style="margin-top:4px">重設位置與縮放</button>` : ''}`;
 function kpBlock(kp) {
@@ -1218,7 +1238,7 @@ function effColors() {
 }
 function applyTheme(st) {
   const c = effColors(), mode = state.theme.mode;
-  for (const [k] of COLOR_KEYS) st.style.setProperty('--' + k, c[k]);
+  for (const [k] of COLOR_KEYS) { st.style.setProperty('--' + k, c[k]); $('#voiceLayer').style.setProperty('--' + k, c[k]); }
   st.dataset.mode = mode;
   document.getElementById('wrap').style.background = mode === 'light' ? '#d9d5df' : '#050407';
 }
