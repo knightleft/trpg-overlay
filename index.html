@@ -83,7 +83,7 @@ body.output #editor{display:none}
 .panel-bg{position:absolute;inset:0;background-position:center;background-size:cover;background-repeat:no-repeat;transform-origin:center;pointer-events:none;z-index:0}
 #p-chars>.ph,#chars{position:relative;z-index:1}
 #p-chars{flex:1;display:flex;flex-direction:column}
-#chars{flex:1;justify-content:flex-start;display:flex;flex-direction:column;gap:8px;padding:4px 10px 10px;min-height:0}
+#chars{flex:1;display:grid;grid-template-columns:repeat(var(--cols,1),minmax(0,1fr));align-content:start;align-items:start;gap:8px;padding:4px 10px 10px;min-height:0}
 
 /* 主持人 */
 #p-kp{height:120px;flex:none;display:flex;align-items:center;gap:18px;padding:0 24px;
@@ -240,6 +240,16 @@ P.DESIGNS = {
     text: { labelFont: 'cinzel', valueFont: 'cinzel', weight: 600, labelSize: 14, valueSize: 18, maxSize: 12, spacing: 0.04, labelByBar: true, outline: 'shadow' },
     name: { pos: 'barsTop', style: 'text', font: 'notoserif', weight: 700, size: 20, gap: 4 },
   },
+  compact: {
+    label: '精簡（兩欄用）', desc: '不顯示頭像、狀態條變窄、字變小，寬度剛好放進「兩欄」排列的半寬角色格。角色很多（大約 6 人以上）時使用。勾選「顏色跟隨介面配色」時會自動換色。',
+    layout: { width: 160, height: 15, gap: 4, textLayout: 'overlay', align: 'split', pad: 6, outer: 4 },
+    avatar: { show: false },
+    initiative: { show: false },
+    bar: { shape: 'chamfer', cut: 3, borderW: 1, borderAlpha: 0.5, track: 'dark', trackAlpha: 0.7, fill: 'vgrad', shadow: 0.2 },
+    colors: [['#e5485d', '#7e2733', 'heart'], ['#5b8cf0', '#324d84', 'sparkle'], ['#4fd394', '#2b7451', 'eye'], ...P.BASE_LOOK.colors.slice(3).map(c => [c.c1, c.c2, c.icon])].map(([c1, c2, icon]) => ({ c1, c2, icon })),
+    text: { labelFont: 'cinzel', valueFont: 'cinzel', weight: 600, labelSize: 11, valueSize: 12, maxSize: 9, spacing: 0.04, outline: 'shadow' },
+    name: { pos: 'top', style: 'text', font: 'notoserif', weight: 700, size: 15, gap: 2 },
+  },
   ...P.DESIGNS,
 };
 function defaultSb() { const sb = M.defaultState(); M.applyDesign(sb, 'overlay'); return sb; }
@@ -257,7 +267,7 @@ const DEFAULT = {
     { name: '凱爾', color: '#60a5fa', sub: '', ccf: '', voice: '', voiceX: 280, voiceSize: 90 },
   ],
   // sizes: 編輯器量到的各角色瀏覽器來源尺寸，OBS 輸出畫面靠它排出一樣的角色格
-  ccf: { room: '', followTheme: true, sizes: [] },
+  ccf: { room: '', followTheme: true, sizes: [], cols: 1 },   // cols：角色格排成幾欄（1 或 2）
   sb: defaultSb(),
   talk: { show: true },   // 場外（玩家閒聊）區；不顯示時場內延伸成一整條
   // 可自訂的區塊標題：t = 中文標題、e = 下方英文小字
@@ -401,7 +411,7 @@ function render() {
   applyTheme(st);
 
   // 角色格留空，給 OBS 疊 CCFOLIA 瀏覽器來源
-  const charsHtml = `<div id="chars">${s.characters.map((c, i) => `<div class="slot" data-i="${i}"></div>`).join('')}</div>`;
+  const charsHtml = `<div id="chars" style="--cols:${s.ccf.cols == 2 ? 2 : 1}">${s.characters.map((c, i) => `<div class="slot" data-i="${i}"></div>`).join('')}</div>`;
 
   const notesHtml = s.notes.split('\n').filter(l => l.trim()).slice(0, 5).map(l => `<div>${esc(l)}</div>`).join('');
   const tags = s.hashtags.split(/\s+/).filter(Boolean).map(t => `<span>${esc(t)}</span>`).join('');
@@ -469,7 +479,8 @@ function layoutSlots(st) {
   const cs = getComputedStyle(box);
   const gap = parseFloat(cs.rowGap) || 0;
   const innerH = box.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
-  const maxH = (innerH - gap * (n - 1)) / n - SLOT_PAD * 2 - 2;
+  const rows = Math.ceil(n / (state.ccf.cols == 2 ? 2 : 1));
+  const maxH = (innerH - gap * (rows - 1)) / rows - SLOT_PAD * 2 - 2;
   const fits = slots.map((el, i) => {
     const sz = sizeOf(i), availW = el.clientWidth - SLOT_PAD * 2;
     const k = Math.min(1, availW / sz.w, maxH / sz.h);
@@ -536,7 +547,7 @@ function updateObsInfo() {
     const shrink = f.k < 0.995;
     el.classList.toggle('warn', shrink);
     el.innerHTML = `CCFOLIA 瀏覽器來源：寬 <b>${f.w}</b> × 高 <b>${f.h}</b><br>編輯變形 → 位置 <b>${f.x}, ${f.y}</b>　大小 <b>${Math.round(f.w * f.k)} × ${Math.round(f.h * f.k)}</b>`
-      + (shrink ? `<br>⚠ 放不下，已縮小成 ${Math.round(f.k * 100)}%。字會變小，建議把「單條寬度」或頭像調小。` : '');
+      + (shrink ? `<br>⚠ 放不下，已縮小成 ${Math.round(f.k * 100)}%。字會變小，建議把「單條寬度」或頭像調小${state.ccf.cols == 2 ? '，或套用「精簡（兩欄用）」範本' : '；角色很多時可以改成兩欄'}。` : '');
   });
   for (const vo of ed.querySelectorAll('[data-voiceobs]')) {
     const id = vo.dataset.voiceobs === 'kp' ? 'kp' : +vo.dataset.voiceobs, v = voicePos(id);
@@ -719,7 +730,7 @@ function sbEditor() {
     <div class="img-in"><select id="sbDesign">${Object.entries(P.DESIGNS).map(([k, d]) => `<option value="${k}"${s.design === k ? ' selected' : ''}>${esc(d.label)}</option>`).join('')}</select><button id="sbApply">套用</button></div>
     <p class="hint" id="sbDesignDesc">${esc(P.DESIGNS[s.design]?.desc || '')}</p>
     <label class="ck" style="margin:6px 0"><input type="checkbox" data-path="ccf.followTheme"${state.ccf.followTheme ? ' checked' : ''}>顏色跟隨介面配色（HP/MP/SAN、文字、外框、名稱…）</label>
-    <p class="hint">${state.ccf.followTheme ? '勾選時，下面的顏色會被介面配色蓋掉；想自己調色請先取消勾選（會保留目前的顏色）。' : '套用「跑團介面風」範本時會自動重新勾選。'}</p>
+    <p class="hint">${state.ccf.followTheme ? '勾選時，下面的顏色會被介面配色蓋掉；想自己調色請先取消勾選（會保留目前的顏色）。' : '套用「跑團介面風」或「精簡（兩欄用）」範本時會自動重新勾選。'}</p>
     <div class="sb-tabs">${tabs.map(([k, t]) => `<button data-sbtab="${k}" class="${sbTab === k ? 'on' : ''}">${t}</button>`).join('')}</div>
 
     ${panel('layout', `
@@ -925,6 +936,9 @@ function buildEditor() {
     <details data-k="chars"><summary>🧙 角色（${s.characters.length}）</summary><div class="sec">
       <p class="hint">每個角色一格空白，給 OBS 疊上 CCFOLIA 的「瀏覽器來源」，HP/MP/SAN 會跟著 CCFOLIA 自動更新。右邊預覽格子裡的狀態條只是用範例數值、範例頭像示範樣式，OBS 畫面上只有空格。</p>
       ${txt('CCFOLIA 房間網址', 'ccf.room', 'https://ccfolia.com/rooms/…')}
+      <label class="f">角色格排列</label>
+      <div class="seg">${[[1, '一欄'], [2, '兩欄']].map(([v, t]) => `<button data-cols="${v}" class="${(s.ccf.cols == 2 ? 2 : 1) === v ? 'on' : ''}">${t}</button>`).join('')}</div>
+      <p class="hint">角色多（大約 6 人以上）時可以改成兩欄。兩欄時每格只有一半寬，建議到「📊 CCFOLIA 狀態條樣式」套用「精簡（兩欄用）」範本，不然狀態條會被縮得很小。改了排列要重新核對每個角色在 OBS 的位置。</p>
       ${bgControls('角色狀態背景圖', 'charsBg')}
       ${kpBlock(s.kp)}
       ${chars}<button id="addChar">＋ 新增角色</button>
@@ -1045,7 +1059,10 @@ ed.addEventListener('click', e => {
   const t = e.target.closest('button');
   if (!t) return;
   const cs = state.characters;
-  if (t.dataset.sinfo) {
+  if (t.dataset.cols) {
+    state.ccf.cols = Number(t.dataset.cols);
+    buildEditor(); commit();
+  } else if (t.dataset.sinfo) {
     const [k, v] = t.dataset.sinfo.split(':');
     state.scene[k] = k === 'lines' ? Number(v) : v;
     buildEditor(); commit();
@@ -1056,7 +1073,7 @@ ed.addEventListener('click', e => {
   } else if (t.id === 'sbApply') {
     const key = $('#sbDesign').value;
     M.applyDesign(state.sb, key);
-    state.ccf.followTheme = key === 'overlay';
+    state.ccf.followTheme = key === 'overlay' || key === 'compact';
     commit(); buildEditor(); toast(`已套用「${P.DESIGNS[key].label}」`);
   } else if (t.dataset.copy) {
     const i = t.dataset.i === 'kp' ? 'kp' : +t.dataset.i, c = i === 'kp' ? state.kp : cs[i];
