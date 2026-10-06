@@ -137,14 +137,16 @@ html:has(body.output),body.output,body.output #wrap{background:transparent!impor
 #notes div::before{content:"・";color:var(--acc)}
 
 /* 底部 */
+/* 跑馬燈：最底部一整條空格，內容由 OBS 疊上去 */
+#marq{grid-column:1/-1}
 #bar{grid-column:1/-1;display:flex;align-items:center;gap:26px;padding:0 30px}
 .badge{flex:none;font-family:Cinzel,serif;font-size:15px;letter-spacing:2px;padding:8px 26px;text-align:center;line-height:1.25;
   border:1px solid var(--sec);clip-path:polygon(12px 0,calc(100% - 12px) 0,100% 50%,calc(100% - 12px) 100%,12px 100%,0 50%);background:linear-gradient(180deg,var(--chip),var(--p2))}
 #bar .ttl{font-size:32px;font-weight:700;letter-spacing:3px;line-height:1.1}
 #bar .stl{font-size:16px;color:var(--dim);font-family:Cinzel,"Noto Serif TC",serif}
 #bar .tags{display:flex;gap:28px;font-size:18px;color:var(--soft)}
+#bar .tagb{margin-left:14px}   /* Hashtag 緊接在標題後面（間距 26+14px） */
 #bar .sp{flex:1}
-#bar .sp-r{flex:.3}
 /* 時間由 OBS 疊上，這裡只留空位 */
 #bar .time-slot{flex:none;width:180px}
 
@@ -256,6 +258,7 @@ const DEFAULT = {
   ccf: { room: '', followTheme: true, sizes: [] },
   sb: defaultSb(),
   talk: { show: true },   // 雜談區；不顯示時對話區延伸成一整條
+  marquee: { show: true, height: 44 },   // 跑馬燈空格（畫面最底部）
   kp: { show: false, name: '主持人', sub: 'GAME MASTER', avatar: '', icon: '🐙' },
   notes: '小鎮的異常氣味\n失蹤的鎮民\n教堂地下室的聲音\n奇怪的符號',
   charsBg: { img: '', opacity: 50, fit: 'contain', zoom: 100, x: 0, y: 0 },
@@ -275,7 +278,7 @@ function fixState(s) {
     const size = (sc.lines == 2 ? sc.size2 : sc.size1) ?? sc.size;
     if (size !== undefined) sc.sizeB = size;
   }
-  for (const k of ['charsBg', 'vtBg', 'ccf', 'scene', 'talk']) s[k] = { ...DEFAULT[k], ...s[k] };
+  for (const k of ['charsBg', 'vtBg', 'ccf', 'scene', 'talk', 'marquee']) s[k] = { ...DEFAULT[k], ...s[k] };
   s.sb = s.sb ? M.normalize(s.sb) : defaultSb();
   if (Array.isArray(s.characters)) s.characters = s.characters.map(c => ({ ccf: '', voice: '', voiceX: s.voice?.x ?? 280, voiceSize: s.voice?.size ?? 90, ...c }));   // 舊版共用的語音頭像設定分給每個角色
   // 清掉已經拿掉的功能留下的欄位（存檔與 OBS 網址都會變小）
@@ -415,17 +418,26 @@ function render() {
   <div class="panel" id="bar">
     <div class="badge">TODAY'S<br>TITLE</div>
     <div><div class="ttl">${esc(s.title)}</div><div class="stl">${esc(s.subtitle)}</div></div>
+    <div class="badge tagb">HASHTAG</div><div class="tags">${tags}</div>
     <div class="sp"></div>
-    <div class="badge">HASHTAG</div><div class="tags">${tags}</div>
-    <div class="sp sp-r"></div>
     <div class="time-slot"></div>
-  </div>`;
+  </div>
+  ${s.marquee.show ? '<div class="panel" id="marq"></div>' : ''}`;
   applyPanelBg(st);
+  st.style.gridTemplateRows = s.marquee.show ? `1fr 100px ${Math.max(20, Number(s.marquee.height) || 44)}px` : '';
+  updateMarqInfo(st);
   const hole = st.querySelector('#p-scene');
   for (const [k, v] of [['hx', hole.offsetLeft], ['hy', hole.offsetTop], ['hw', hole.offsetWidth], ['hh', hole.offsetHeight]]) st.style.setProperty('--' + k, v + 'px');
   layoutSlots(st);
   syncPreviews();
   syncVoice();
+}
+
+// 跑馬燈空格在 OBS 的位置（框線內側）
+function updateMarqInfo(st) {
+  const el = st.querySelector('#marq'), out = OUTPUT ? null : ed.querySelector('[data-marqinfo]');
+  if (!el || !out) return;
+  out.innerHTML = `跑馬燈區域（框線內側）：位置 <b>${el.offsetLeft + el.clientLeft}, ${el.offsetTop + el.clientTop}</b>　大小 <b>${el.clientWidth} × ${el.clientHeight}</b>`;
 }
 
 /* ---------- CCFOLIA 角色格 ---------- */
@@ -890,6 +902,13 @@ function buildEditor() {
 
     <details data-k="bar"><summary>🏷️ 標題列</summary><div class="sec">
       ${txt('今日標題', 'title')}${txt('副標', 'subtitle')}${txt('Hashtag（空白分隔）', 'hashtags')}
+      <p class="hint">Hashtag 緊接在標題後面；最右邊留了 180px 空位給 OBS 放時間。</p>
+    </div></details>
+
+    <details data-k="marquee"><summary>🎞️ 跑馬燈${s.marquee.show ? '' : '（隱藏中）'}</summary><div class="sec">
+      <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer"><input type="checkbox" data-path="marquee.show" ${s.marquee.show ? 'checked' : ''}>在畫面最底部留一條跑馬燈空格</label>
+      <p class="hint">只有外框、裡面空白，跑馬燈文字由 OBS 疊上去。開關或改高度時，標題列（連同時間）會跟著上下移，下方的對話區、聊天室高度也會變。</p>
+      ${s.marquee.show ? pxRange('高度', 'marquee.height', 24, 80) + '<div class="obsline" data-marqinfo></div>' : ''}
     </div></details>
 
 
@@ -931,7 +950,7 @@ ed.addEventListener('input', e => {
   if (!p) return;
   if (t.value === '(已上傳圖片)') return;
   setPath(p, t.type === 'checkbox' ? t.checked : 'num' in t.dataset ? (t.value === '' ? '' : Number(t.value)) : t.value);
-  if (p === 'kp.show' || p === 'talk.show') buildEditor();
+  if (p === 'kp.show' || p === 'talk.show' || p === 'marquee.show') buildEditor();
   if (p === 'ccf.followTheme') {
     if (!t.checked) applyThemeColors(state.sb);   // 取消時保留目前看到的顏色
     commit(); buildEditor(); return;
