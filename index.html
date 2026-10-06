@@ -148,7 +148,7 @@ html:has(body.output),body.output,body.output #wrap{background:transparent!impor
 #bar .ttl{font-size:32px;font-weight:700;letter-spacing:3px;line-height:1.1}
 #bar .stl{font-size:16px;color:var(--dim);font-family:Cinzel,"Noto Serif TC",serif}
 #bar .tags{display:flex;gap:28px;font-size:18px;color:var(--soft)}
-#bar .tagb{margin-left:14px}   /* Hashtag 緊接在標題後面（間距 26+14px） */
+#bar .tagb{margin-left:calc(var(--tag-gap,120px) - 26px)}   /* 標題與 Hashtag 的距離（減掉 flex 本身的 26px 間距） */
 #bar .sp{flex:1}
 /* 時間由 OBS 疊上，這裡只留空位 */
 #bar .time-slot{flex:none;width:180px}
@@ -226,7 +226,7 @@ body.output #sbLayer{display:none}
 <script src="statusbar/pcfonts.v1.js"></script>
 <script>
 // 版號：每次有小功能改動 +0.01；單純改錯字或微調同一件事不用加
-const VERSION = '1.02';
+const VERSION = '1.03';
 const KEY = 'trpg-overlay-v1';
 const OUTPUT = new URLSearchParams(location.search).get('view') === 'output';
 // OBS 瀏覽器來源讀不到 Chrome 的存檔，所以設定直接壓縮編在網址 #s= 後面（「複製 OBS 網址」產生）
@@ -271,6 +271,7 @@ const DEFAULT = {
   // 可自訂的區塊標題：t = 中文標題、e = 下方英文小字
   labels: { scene: { t: '場內・劇情扮演', e: 'DICE & ROLEPLAY' }, free: { t: '場外・玩家閒聊', e: 'PLAYER TALK' }, chat: { t: '聊天室', e: 'LIVE CHAT' }, notes: { t: '劇情筆記', e: 'NOTE' } },
   notesPanel: { show: true },   // 劇情筆記；不顯示時聊天室往下延伸
+  barCfg: { tagGap: 120 },   // 標題列：標題與 Hashtag 的距離 px
   marquee: { show: true, height: 44 },   // 跑馬燈空格（疊在 VTuber 框內下緣）
   vt: { height: 420 },   // VTuber 格高度
   kp: { show: false, name: '主持人', sub: 'GAME MASTER', avatar: '', icon: '🐙', voice: '', voiceZoom: 100, voiceX: 0, voiceY: 0, voiceAlpha: 100 },
@@ -292,7 +293,7 @@ function fixState(s) {
     const size = (sc.lines == 2 ? sc.size2 : sc.size1) ?? sc.size;
     if (size !== undefined) sc.sizeB = size;
   }
-  for (const k of ['charsBg', 'vtBg', 'ccf', 'scene', 'talk', 'marquee', 'vt', 'kp', 'labels', 'notesPanel']) s[k] = { ...DEFAULT[k], ...s[k] };
+  for (const k of ['charsBg', 'vtBg', 'ccf', 'scene', 'talk', 'marquee', 'vt', 'kp', 'labels', 'notesPanel', 'barCfg']) s[k] = { ...DEFAULT[k], ...s[k] };
   s.labels = Object.fromEntries(Object.entries(DEFAULT.labels).map(([k, v]) => [k, { ...v, ...s.labels[k] }]));   // 新增的標題也補上預設
   s.sb = s.sb ? M.normalize(s.sb) : defaultSb();
   if (Array.isArray(s.characters)) s.characters = s.characters.map(c => ({ sub: '', ccf: '', voice: '', voiceZoom: 100, voiceX: 0, voiceY: 0, voiceAlpha: 100, ...c }));   // 舊版共用的語音頭像設定分給每個角色
@@ -447,7 +448,7 @@ function render() {
   <div class="panel" id="bar">
     <div class="badge">TODAY'S<br>TITLE</div>
     <div><div class="ttl">${esc(s.title)}</div><div class="stl">${esc(s.subtitle)}</div></div>
-    <div class="badge tagb">HASHTAG</div><div class="tags">${tags}</div>
+    <div class="badge tagb" style="--tag-gap:${Math.max(26, Number(s.barCfg.tagGap) || 120)}px">HASHTAG</div><div class="tags">${tags}</div>
     <div class="sp"></div>
     <div class="time-slot"></div>
   </div>
@@ -1007,7 +1008,8 @@ function buildEditor() {
 
     <details data-k="bar"><summary>🏷️ 標題列</summary><div class="sec">
       ${txt('今日標題', 'title')}${txt('副標', 'subtitle')}${txt('Hashtag（空白分隔）', 'hashtags')}
-      <p class="hint">Hashtag 緊接在標題後面；最右邊留了 180px 空位給 OBS 放時間。</p>
+      <p class="hint">最右邊留了 180px 空位給 OBS 放時間。</p>
+      ${pxRange('標題與 Hashtag 的距離', 'barCfg.tagGap', 26, 600)}
     </div></details>
 
 
