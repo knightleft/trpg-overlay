@@ -261,7 +261,8 @@ const DEFAULT = {
   sb: defaultSb(),
   talk: { show: true },   // 場外（玩家閒聊）區；不顯示時場內延伸成一整條
   // 可自訂的區塊標題：t = 中文標題、e = 下方英文小字
-  labels: { scene: { t: '場內・劇情扮演', e: 'DICE & ROLEPLAY' }, free: { t: '場外・玩家閒聊', e: 'PLAYER TALK' }, chat: { t: '聊天室', e: 'LIVE CHAT' } },
+  labels: { scene: { t: '場內・劇情扮演', e: 'DICE & ROLEPLAY' }, free: { t: '場外・玩家閒聊', e: 'PLAYER TALK' }, chat: { t: '聊天室', e: 'LIVE CHAT' }, notes: { t: '劇情筆記', e: 'NOTE' } },
+  notesPanel: { show: true },   // 劇情筆記；不顯示時聊天室往下延伸
   marquee: { show: true, height: 44 },   // 跑馬燈空格（疊在 VTuber 框內下緣）
   vt: { height: 420 },   // VTuber 格高度
   kp: { show: false, name: '主持人', sub: 'GAME MASTER', avatar: '', icon: '🐙', voice: '', voiceX: 300, voiceSize: 90 },
@@ -283,7 +284,8 @@ function fixState(s) {
     const size = (sc.lines == 2 ? sc.size2 : sc.size1) ?? sc.size;
     if (size !== undefined) sc.sizeB = size;
   }
-  for (const k of ['charsBg', 'vtBg', 'ccf', 'scene', 'talk', 'marquee', 'vt', 'kp', 'labels']) s[k] = { ...DEFAULT[k], ...s[k] };
+  for (const k of ['charsBg', 'vtBg', 'ccf', 'scene', 'talk', 'marquee', 'vt', 'kp', 'labels', 'notesPanel']) s[k] = { ...DEFAULT[k], ...s[k] };
+  s.labels = Object.fromEntries(Object.entries(DEFAULT.labels).map(([k, v]) => [k, { ...v, ...s.labels[k] }]));   // 新增的標題也補上預設
   s.sb = s.sb ? M.normalize(s.sb) : defaultSb();
   if (Array.isArray(s.characters)) s.characters = s.characters.map(c => ({ ccf: '', voice: '', voiceX: s.voice?.x ?? 280, voiceSize: s.voice?.size ?? 90, ...c }));   // 舊版共用的語音頭像設定分給每個角色
   // 清掉已經拿掉的功能留下的欄位（存檔與 OBS 網址都會變小）
@@ -421,7 +423,7 @@ function render() {
   <div class="col">
     <div class="panel" id="p-vt" style="height:${Math.max(200, Number(s.vt.height) || 420)}px">${panelBg('vtBg')}${s.twitter ? `<div id="p-tw"><div class="tw">${esc(s.twitter)}</div></div>` : ""}${s.marquee.show ? `<div id="marq" style="height:${Math.max(20, Number(s.marquee.height) || 44)}px"></div>` : ''}</div>
     <div class="panel" id="p-chat">${phHtml(s.labels.chat)}</div>
-    <div class="panel" id="p-notes"><div class="ph"><div class="t">劇情筆記</div><div class="e">NOTE</div></div><div id="notes">${notesHtml}</div></div>
+    ${s.notesPanel.show ? `<div class="panel" id="p-notes">${phHtml(s.labels.notes)}<div id="notes">${notesHtml}</div></div>` : ''}
   </div>
   <div class="panel" id="bar">
     <div class="badge">TODAY'S<br>TITLE</div>
@@ -937,7 +939,11 @@ function buildEditor() {
       ${s.marquee.show ? pxRange('高度', 'marquee.height', 24, 80) + '<div class="obsline" data-marqinfo></div>' : ''}
     </div></details>
 
-    <details data-k="notes"><summary>📝 劇情筆記</summary><div class="sec">${area('一行一條（最多 5 條）', 'notes', 5)}</div></details>
+    <details data-k="notes"><summary>📝 劇情筆記${s.notesPanel.show ? '' : '（隱藏中）'}</summary><div class="sec">
+      <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer"><input type="checkbox" data-path="notesPanel.show" ${s.notesPanel.show ? 'checked' : ''}>在畫面上顯示劇情筆記</label>
+      <p class="hint">不勾的時候，上面的聊天室會往下延伸補滿空間。</p>
+      ${s.notesPanel.show ? labelFields('標題', 'notes') + area('內容：一行一條（最多 5 條）', 'notes', 5) : ''}
+    </div></details>
 
     <details data-k="bar"><summary>🏷️ 標題列</summary><div class="sec">
       ${txt('今日標題', 'title')}${txt('副標', 'subtitle')}${txt('Hashtag（空白分隔）', 'hashtags')}
@@ -985,7 +991,7 @@ ed.addEventListener('input', e => {
   if (!p) return;
   if (t.value === '(已上傳圖片)') return;
   setPath(p, t.type === 'checkbox' ? t.checked : 'num' in t.dataset ? (t.value === '' ? '' : Number(t.value)) : t.value);
-  if (p === 'kp.show' || p === 'talk.show' || p === 'marquee.show') buildEditor();
+  if (['kp.show', 'talk.show', 'marquee.show', 'notesPanel.show'].includes(p)) buildEditor();
   if (p === 'ccf.followTheme') {
     if (!t.checked) applyThemeColors(state.sb);   // 取消時保留目前看到的顏色
     commit(); buildEditor(); return;
