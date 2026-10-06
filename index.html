@@ -428,7 +428,7 @@ function render() {
   st.innerHTML = `
   <div class="col">
     <div class="panel" id="p-chars">${panelBg('charsBg')}<div class="ph"><div class="t">角色狀態</div><div class="e">CHARACTERS</div></div>${charsHtml}</div>
-    ${s.kp.show ? `<div class="panel" id="p-kp"><div class="kav" style='${bg(s.kp.avatar)}'>${s.kp.avatar ? '' : esc(s.kp.icon)}</div><div><div class="kn">${esc(s.kp.name)}</div><div class="ks">${esc(s.kp.sub)}</div></div></div>` : ""}
+    ${s.kp.show ? `<div class="panel" id="p-kp">${voiceUrl(s.kp) ? '<div class="kav"></div>' : `<div class="kav" style='${bg(s.kp.avatar)}'>${s.kp.avatar ? '' : esc(s.kp.icon)}</div>`}<div><div class="kn">${esc(s.kp.name)}</div><div class="ks">${esc(s.kp.sub)}</div></div></div>` : ""}
   </div>
   <div class="col">
     <div class="panel" id="p-scene">
@@ -455,7 +455,8 @@ function render() {
   applyPanelBg(st);
   updateMarqInfo(st);
   const kpEl = st.querySelector('#p-kp');
-  kpBox = kpEl ? { x: kpEl.offsetLeft + kpEl.clientLeft, y: kpEl.offsetTop + kpEl.clientTop, w: kpEl.clientWidth, h: kpEl.clientHeight } : null;
+  const kav = kpEl?.querySelector('.kav');
+  kpBox = kav ? { x: kpEl.offsetLeft + kpEl.clientLeft + kav.offsetLeft + kav.clientLeft, y: kpEl.offsetTop + kpEl.clientTop + kav.offsetTop + kav.clientTop, w: kav.clientWidth, h: kav.clientHeight } : null;
   layoutSlots(st);
   applyHoles(st);
   syncPreviews();
@@ -630,7 +631,7 @@ function syncPreviews() {
    iframe 放在固定的一層（不跟著 render 重建），才不會每改一次設定就重新連線。 */
 // id：角色是索引數字，主持人是 'kp'
 const voiceFrames = new Map();
-let kpBox = null;   // 主持人格框線內側（沒顯示時是 null）
+let kpBox = null;   // 主持人圓形頭像框的內側（沒顯示時是 null）
 const voiceSrc = id => id === 'kp' ? state.kp : state.characters[id];
 const voiceBox = id => id === 'kp' ? (state.kp.show ? kpBox : null) : slotInfo[id]?.inner;
 function syncVoice() {
@@ -652,7 +653,8 @@ function syncVoice() {
     }
     const fr = box.firstChild;
     if (fr.dataset.src !== url) { fr.dataset.src = url; fr.src = url; }   // 只在網址改變時重新載入
-    Object.assign(box.style, { left: b.x + 'px', top: b.y + 'px', width: b.w + 'px', height: b.h + 'px' });
+    // 主持人的圓形遮罩，角色格是方形
+    Object.assign(box.style, { left: b.x + 'px', top: b.y + 'px', width: b.w + 'px', height: b.h + 'px', borderRadius: id === 'kp' ? '50%' : '0' });
     const zoom = (Number(c.voiceZoom) || 100) / 100, alpha = Math.max(0, Math.min(100, c.voiceAlpha ?? 100)) / 100;
     Object.assign(fr.style, { transform: `translate(${Number(c.voiceX) || 0}%, ${Number(c.voiceY) || 0}%) scale(${zoom})`, opacity: alpha });
   }
@@ -1033,7 +1035,7 @@ function updateCharNotes() {
     const isKp = el.dataset.voicenote === 'kp', c = voiceSrc(isKp ? 'kp' : +el.dataset.voicenote), v = String(c.voice || '').trim();
     el.style.color = '#ffb86b';
     el.textContent = !v ? '' : !voiceUrl(c) ? '要貼 https://reactive.fugi.tech/ 開頭的網址。'
-      : (el.style.color = '', isKp ? 'Reactive 會當作主持人格的背景（不會超出格子），OBS 不用另外加來源。'
+      : (el.style.color = '', isKp ? 'Reactive 會放在主持人的圓形頭像框裡（圓形裁切，取代圖示與頭像），OBS 不用另外加來源。'
         : 'Reactive 會當作這個角色格的背景，墊在狀態條下面、不會超出格子，OBS 不用另外加來源。說話時的反應（換圖、跳動、變亮）請在 Reactive 後台設定。');
   }
   for (const el of ed.querySelectorAll('[data-note]')) {
