@@ -251,10 +251,10 @@ const DEFAULT = {
   // a = 前段（次色）、b = 後段（文字色），1～5 是第幾行（最多 SINFO_MAX 行）；sizeA / sizeB 是前段 / 後段的字體大小
   scene: { lines: 2, a1: '時間', b1: '1925年10月3日　深夜', a2: '地點', b2: '阿卡姆・米斯卡托尼克大學', a3: '', b3: '', a4: '', b4: '', a5: '', b5: '', deco: 'front', sizeA: 16, sizeB: 22 },
   characters: [
-    { name: '艾莉亞', color: '#c084fc', ccf: '', voice: '', voiceX: 280, voiceSize: 90 },
-    { name: '雷恩', color: '#f87171', ccf: '', voice: '', voiceX: 280, voiceSize: 90 },
-    { name: '莉薇婭', color: '#fb7185', ccf: '', voice: '', voiceX: 280, voiceSize: 90 },
-    { name: '凱爾', color: '#60a5fa', ccf: '', voice: '', voiceX: 280, voiceSize: 90 },
+    { name: '艾莉亞', color: '#c084fc', sub: '', ccf: '', voice: '', voiceX: 280, voiceSize: 90 },
+    { name: '雷恩', color: '#f87171', sub: '', ccf: '', voice: '', voiceX: 280, voiceSize: 90 },
+    { name: '莉薇婭', color: '#fb7185', sub: '', ccf: '', voice: '', voiceX: 280, voiceSize: 90 },
+    { name: '凱爾', color: '#60a5fa', sub: '', ccf: '', voice: '', voiceX: 280, voiceSize: 90 },
   ],
   // sizes: 編輯器量到的各角色瀏覽器來源尺寸，OBS 輸出畫面靠它排出一樣的角色格
   ccf: { room: '', followTheme: true, sizes: [] },
@@ -287,12 +287,12 @@ function fixState(s) {
   for (const k of ['charsBg', 'vtBg', 'ccf', 'scene', 'talk', 'marquee', 'vt', 'kp', 'labels', 'notesPanel']) s[k] = { ...DEFAULT[k], ...s[k] };
   s.labels = Object.fromEntries(Object.entries(DEFAULT.labels).map(([k, v]) => [k, { ...v, ...s.labels[k] }]));   // 新增的標題也補上預設
   s.sb = s.sb ? M.normalize(s.sb) : defaultSb();
-  if (Array.isArray(s.characters)) s.characters = s.characters.map(c => ({ ccf: '', voice: '', voiceX: s.voice?.x ?? 280, voiceSize: s.voice?.size ?? 90, ...c }));   // 舊版共用的語音頭像設定分給每個角色
+  if (Array.isArray(s.characters)) s.characters = s.characters.map(c => ({ sub: '', ccf: '', voice: '', voiceX: s.voice?.x ?? 280, voiceSize: s.voice?.size ?? 90, ...c }));   // 舊版共用的語音頭像設定分給每個角色
   // 清掉已經拿掉的功能留下的欄位（存檔與 OBS 網址都會變小）
   delete s.voice;
   for (const k of ['mode', 'avatars']) delete s.ccf[k];
   for (const k of ['text', 'bg', 'time', 'place', 'line1', 'line2', 'size', 'size1', 'size2']) delete s.scene[k];
-  if (Array.isArray(s.characters)) for (const c of s.characters) for (const k of ['sub', 'icon', 'avatar', 'hp', 'hpMax', 'mp', 'mpMax', 'san', 'sanMax']) delete c[k];
+  if (Array.isArray(s.characters)) for (const c of s.characters) for (const k of ['icon', 'avatar', 'hp', 'hpMax', 'mp', 'mpMax', 'san', 'sanMax']) delete c[k];
   return Object.assign(structuredClone(DEFAULT), s);
 }
 function load() {
@@ -500,8 +500,34 @@ const charUrl = c => M.characterUrl(state.ccf.room, c.ccf);
 const voiceUrl = c => /^https:\/\/reactive\.fugi\.tech\/\S+$/.test(String(c.voice || '').trim()) ? String(c.voice).trim() : '';
 const charCss = i => {
   const c = state.characters[i];
-  return C.build(state.sb, { name: c.name, color: c.color, url: charUrl(c), size: sizeOf(i) });
+  return C.build(state.sb, { name: c.name, color: c.color, url: charUrl(c), size: sizeOf(i) }) + subCss(state.sb, c);
 };
+// 角色副標題（職業、HO、玩家名…）：用另一個偽元素放在名字正下方，字小一點、顏色淡一點
+const cssStr = t => '"' + String(t).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\r?\n/g, ' ') + '"';
+function subCss(sb, c) {
+  const sub = String(c.sub || '').trim(), N = sb.name;
+  if (!sub || N.pos === 'none' || !String(c.name || '').trim()) return '';
+  const SEL = C.SEL, g = C.geometry(sb), size = Math.max(10, Math.round(N.size * 0.68));
+  const rule = (sel, d) => `${sel} {\n${Object.entries(d).map(([k, v]) => `  ${k}: ${v} !important;`).join('\n')}\n}`;
+  const head = `\n/* ---------- 副標題（顯示在名字下面） ---------- */\n:root { --sub: ${cssStr(sub)}; }\n`;
+  // 名字在左側或疊在頭像上時，直接換行接在名字後面
+  if (N.pos === 'left' || N.pos === 'avatar') {
+    const host = N.pos === 'left' ? `${SEL.wrap}::before` : `${SEL.badge}::after`;
+    return head + rule(host, { content: 'var(--name) "\\A" var(--sub)', 'white-space': 'pre' }) + '\n';
+  }
+  // 其他位置：名字與副標題用 flex 的 order 排在一起
+  const [nameHost, subHost, nameOrder, subOrder, width] = {
+    top: [`${SEL.wrap}::before`, `${SEL.wrap}::after`, -2, -1, g.itemW],
+    barsTop: [`${SEL.side}::before`, `${SEL.side}::after`, -2, -1, g.barsW],
+    bottom: [`${SEL.wrap}::after`, `${SEL.wrap}::before`, 1, 2, g.itemW],
+  }[N.pos];
+  return head + rule(nameHost, { order: nameOrder }) + '\n' + rule(subHost, {
+    content: 'var(--sub)', display: 'block', order: subOrder, margin: `${2 - N.gap}px 0 0`, padding: '0', background: 'none', border: 'none',
+    'font-family': C.family(N.font, N.fontName), 'font-size': size + 'px', 'font-weight': C.weightOf(N.font, 400), 'line-height': '1.3',
+    color: C.rgba(N.color, 0.72), 'text-align': N.align, 'letter-spacing': '0.04em', 'text-shadow': sb.text.outline === 'none' ? 'none' : '0 1px 2px rgba(0, 0, 0, 0.55)',
+    width: width + 'px', 'max-width': width + 'px', 'white-space': 'nowrap', overflow: 'hidden', 'text-overflow': 'ellipsis',
+  }) + '\n';
+}
 function updateObsInfo() {
   if (OUTPUT) return;
   slotInfo.forEach((f, i) => {
@@ -834,6 +860,7 @@ function charBlock(c, i) {
       <div class="char-h"><span>#${i + 1} ${esc(c.name)}</span>
         <button data-act="up" data-i="${i}">↑</button><button data-act="down" data-i="${i}">↓</button><button data-act="del" data-i="${i}">刪除</button></div>
       <div class="row"><div>${txt('名字（寫進 CSS）', `characters.${i}.name`)}</div><div class="nf"><label class="f">角色顏色</label><input type="color" data-path="characters.${i}.color" value="${esc(c.color)}"></div></div>
+      ${txt('副標題（顯示在名字下面，可不填）', `characters.${i}.sub`, '例：記者 / HO2 / PL 小明')}
       ${txt('CCFOLIA 角色 ID 或棋子網址', `characters.${i}.ccf`, '棋子按右鍵 →「Copy Id (for dev)」')}
       <p class="hint" style="color:#ffb86b;margin:2px 0 0" data-note="${i}"></p>
       <div class="charbtns"><button class="primary" data-copy="css" data-i="${i}">複製 CSS</button><button data-copy="url" data-i="${i}">複製 CCFOLIA 網址</button></div>
@@ -1055,7 +1082,7 @@ ed.addEventListener('click', e => {
   } else if (t.dataset.clear) {
     setPath(t.dataset.clear, ''); buildEditor(); commit();
   } else if (t.id === 'addChar') {
-    cs.push({ name: '新角色', color: '#c4b5fd', ccf: '', voice: '', voiceX: 280, voiceSize: 90 });
+    cs.push({ name: '新角色', color: '#c4b5fd', sub: '', ccf: '', voice: '', voiceX: 280, voiceSize: 90 });
     buildEditor(); commit();
   } else if (t.id === 'obsUrl') {
     obsUrl().then(url => {
