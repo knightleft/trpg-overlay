@@ -169,18 +169,16 @@ html:has(body.output),body.output,body.output #wrap{background:transparent!impor
 .slot{flex:none;box-sizing:border-box;padding:6px;position:relative;
   border:1px solid var(--line2);background:linear-gradient(90deg,color-mix(in srgb,var(--chip) 60%,transparent),color-mix(in srgb,var(--p2) 50%,transparent))}
 /* 編輯器預覽：疊在畫面上的 CCFOLIA 模擬畫面（OBS 輸出畫面沒有這層） */
-/* 角色格挖空時，格子裡透明（底色由遮罩挖掉） */
-#chars.hollow .slot{background:transparent}
-/* 疊放順序：挖空用的語音預覽 < 跑團介面 < CCFOLIA 預覽 < 語音預覽 */
-#voiceUnder{z-index:0}
+/* 疊放順序：跑團介面 < Reactive 背景 < CCFOLIA 預覽 */
 #stage{z-index:1}
-#sbLayer{z-index:2}
-#voiceLayer{z-index:3}
-#sbLayer,#voiceLayer,#voiceUnder{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0;pointer-events:none;overflow:hidden}
-/* 語音：Reactive 的單人頭像預覽（實際在 OBS 是每個角色各自的瀏覽器來源，輸出畫面沒有這層） */
-#voiceLayer iframe,#voiceUnder iframe{position:absolute;border:0;background:transparent;overflow:hidden;color-scheme:normal}
+#voiceLayer{z-index:2}
+#sbLayer{z-index:3}
+#sbLayer,#voiceLayer{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0;pointer-events:none;overflow:hidden}
+/* 語音：Reactive 單人頭像當作角色格（主持人格）的背景，裁切在格子框線內，OBS 輸出畫面也有 */
+#voiceLayer .vbox{position:absolute;overflow:hidden}
+#voiceLayer .vbox iframe{position:absolute;left:0;top:0;width:100%;height:100%;border:0;background:transparent;transform-origin:center;color-scheme:normal}
 #sbLayer iframe{position:absolute;border:0;background:transparent;transform-origin:0 0;color-scheme:normal}
-body.output #sbLayer,body.output #voiceLayer,body.output #voiceUnder{display:none}
+body.output #sbLayer{display:none}
 /* 編輯器：狀態條設定 */
 .sb-tabs{display:flex;gap:2px;border-bottom:1px solid var(--ed-line);margin:8px 0 2px}
 .sb-tabs button{flex:1;border:0;border-bottom:2px solid transparent;border-radius:0;background:none;color:var(--ed-dim);padding:6px 2px;white-space:nowrap}
@@ -214,7 +212,7 @@ body.output #sbLayer,body.output #voiceLayer,body.output #voiceUnder{display:non
 <body>
 <div id="app">
   <aside id="editor"></aside>
-  <main id="wrap"><div id="voiceUnder"></div><div id="stage"></div><div id="voiceLayer"></div><div id="sbLayer"></div></main>
+  <main id="wrap"><div id="stage"></div><div id="voiceLayer"></div><div id="sbLayer"></div></main>
 </div>
 <div id="toast"></div>
 
@@ -261,13 +259,13 @@ const DEFAULT = {
   // a = 前段（次色）、b = 後段（文字色），1～5 是第幾行（最多 SINFO_MAX 行）；sizeA / sizeB 是前段 / 後段的字體大小
   scene: { lines: 2, a1: '時間', b1: '1925年10月3日　深夜', a2: '地點', b2: '阿卡姆・米斯卡托尼克大學', a3: '', b3: '', a4: '', b4: '', a5: '', b5: '', deco: 'front', sizeA: 16, sizeB: 22 },
   characters: [
-    { name: '艾莉亞', color: '#c084fc', sub: '', ccf: '', voice: '', voiceX: 280, voiceY: 0, voiceSize: 90, voiceAlpha: 100 },
-    { name: '雷恩', color: '#f87171', sub: '', ccf: '', voice: '', voiceX: 280, voiceY: 0, voiceSize: 90, voiceAlpha: 100 },
-    { name: '莉薇婭', color: '#fb7185', sub: '', ccf: '', voice: '', voiceX: 280, voiceY: 0, voiceSize: 90, voiceAlpha: 100 },
-    { name: '凱爾', color: '#60a5fa', sub: '', ccf: '', voice: '', voiceX: 280, voiceY: 0, voiceSize: 90, voiceAlpha: 100 },
+    { name: '艾莉亞', color: '#c084fc', sub: '', ccf: '', voice: '', voiceZoom: 100, voiceX: 0, voiceY: 0, voiceAlpha: 100 },
+    { name: '雷恩', color: '#f87171', sub: '', ccf: '', voice: '', voiceZoom: 100, voiceX: 0, voiceY: 0, voiceAlpha: 100 },
+    { name: '莉薇婭', color: '#fb7185', sub: '', ccf: '', voice: '', voiceZoom: 100, voiceX: 0, voiceY: 0, voiceAlpha: 100 },
+    { name: '凱爾', color: '#60a5fa', sub: '', ccf: '', voice: '', voiceZoom: 100, voiceX: 0, voiceY: 0, voiceAlpha: 100 },
   ],
   // sizes: 編輯器量到的各角色瀏覽器來源尺寸，OBS 輸出畫面靠它排出一樣的角色格
-  ccf: { room: '', followTheme: true, sizes: [], hollow: false },   // hollow：角色格挖空，讓 OBS 放在下面的 Reactive 透出來
+  ccf: { room: '', followTheme: true, sizes: [] },
   sb: defaultSb(),
   talk: { show: true },   // 場外（玩家閒聊）區；不顯示時場內延伸成一整條
   // 可自訂的區塊標題：t = 中文標題、e = 下方英文小字
@@ -275,7 +273,7 @@ const DEFAULT = {
   notesPanel: { show: true },   // 劇情筆記；不顯示時聊天室往下延伸
   marquee: { show: true, height: 44 },   // 跑馬燈空格（疊在 VTuber 框內下緣）
   vt: { height: 420 },   // VTuber 格高度
-  kp: { show: false, name: '主持人', sub: 'GAME MASTER', avatar: '', icon: '🐙', voice: '', voiceX: 300, voiceY: 0, voiceSize: 90, voiceAlpha: 100 },
+  kp: { show: false, name: '主持人', sub: 'GAME MASTER', avatar: '', icon: '🐙', voice: '', voiceZoom: 100, voiceX: 0, voiceY: 0, voiceAlpha: 100 },
   notes: '小鎮的異常氣味\n失蹤的鎮民\n教堂地下室的聲音\n奇怪的符號',
   charsBg: { img: '', opacity: 50, fit: 'contain', zoom: 100, x: 0, y: 0 },
   vtBg: { img: '', opacity: 50, fit: 'contain', zoom: 100, x: 0, y: 0 },
@@ -297,11 +295,16 @@ function fixState(s) {
   for (const k of ['charsBg', 'vtBg', 'ccf', 'scene', 'talk', 'marquee', 'vt', 'kp', 'labels', 'notesPanel']) s[k] = { ...DEFAULT[k], ...s[k] };
   s.labels = Object.fromEntries(Object.entries(DEFAULT.labels).map(([k, v]) => [k, { ...v, ...s.labels[k] }]));   // 新增的標題也補上預設
   s.sb = s.sb ? M.normalize(s.sb) : defaultSb();
-  if (Array.isArray(s.characters)) s.characters = s.characters.map(c => ({ sub: '', ccf: '', voice: '', voiceX: s.voice?.x ?? 280, voiceY: 0, voiceSize: s.voice?.size ?? 90, voiceAlpha: 100, ...c }));   // 舊版共用的語音頭像設定分給每個角色
+  if (Array.isArray(s.characters)) s.characters = s.characters.map(c => ({ sub: '', ccf: '', voice: '', voiceZoom: 100, voiceX: 0, voiceY: 0, voiceAlpha: 100, ...c }));   // 舊版共用的語音頭像設定分給每個角色
   delete s._v;
   // 清掉已經拿掉的功能留下的欄位（存檔與 OBS 網址都會變小）
   delete s.voice;
-  for (const k of ['mode', 'avatars', 'cols']) delete s.ccf[k];
+  for (const k of ['mode', 'avatars', 'cols', 'hollow']) delete s.ccf[k];
+  // 語音頭像舊版是獨立的 OBS 來源（px 位置＋大小），改成格子背景（%）後位置歸零
+  for (const c of [...(Array.isArray(s.characters) ? s.characters : []), ...(s.kp ? [s.kp] : [])]) {
+    if (c.voiceSize !== undefined) Object.assign(c, { voiceZoom: 100, voiceX: 0, voiceY: 0 });
+    delete c.voiceSize;
+  }
   for (const k of ['text', 'bg', 'time', 'place', 'line1', 'line2', 'size', 'size1', 'size2']) delete s.scene[k];
   if (Array.isArray(s.characters)) for (const c of s.characters) for (const k of ['icon', 'avatar', 'hp', 'hpMax', 'mp', 'mpMax', 'san', 'sanMax']) delete c[k];
   return Object.assign(structuredClone(DEFAULT), s);
@@ -364,8 +367,8 @@ async function saveObsFile() {
 async function packState() {
   const o = structuredClone(state);
   delete o.sb;                                              // 輸出畫面用不到狀態條設定
-  o.characters = o.characters.map(c => ({ name: c.name })); // 只需要人數（ID、語音頭像都是角色自己的 OBS 來源）
-  for (const k of ['voice', 'voiceX', 'voiceSize']) delete o.kp[k];   // 主持人的語音頭像也是自己的 OBS 來源
+  // 人數與語音背景（CCFOLIA ID、顏色只給編輯器用）
+  o.characters = o.characters.map(c => ({ name: c.name, voice: c.voice, voiceZoom: c.voiceZoom, voiceX: c.voiceX, voiceY: c.voiceY, voiceAlpha: c.voiceAlpha }));
   const stream = new Blob([JSON.stringify(o)]).stream().pipeThrough(new CompressionStream('deflate-raw'));
   const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
   let bin = '';
@@ -452,7 +455,7 @@ function render() {
   applyPanelBg(st);
   updateMarqInfo(st);
   const kpEl = st.querySelector('#p-kp');
-  kpBox = kpEl ? { x: kpEl.offsetLeft, y: kpEl.offsetTop, w: kpEl.offsetWidth, h: kpEl.offsetHeight } : null;
+  kpBox = kpEl ? { x: kpEl.offsetLeft + kpEl.clientLeft, y: kpEl.offsetTop + kpEl.clientTop, w: kpEl.clientWidth, h: kpEl.clientHeight } : null;
   layoutSlots(st);
   applyHoles(st);
   syncPreviews();
@@ -469,25 +472,12 @@ function maskLayers(holes) {
   };
 }
 function applyHoles(st) {
-  const scene = st.querySelector('#p-scene'), hollow = !!state.ccf.hollow;
-  const slotHoles = hollow ? slotInfo.map(s => s.inner) : [];
-  // 整體底色：劇情畫面＋角色格
-  const m = maskLayers([{ x: scene.offsetLeft, y: scene.offsetTop, w: scene.offsetWidth, h: scene.offsetHeight }, ...slotHoles]);
+  const scene = st.querySelector('#p-scene');
+  // 整體底色：挖掉劇情畫面
+  const m = maskLayers([{ x: scene.offsetLeft, y: scene.offsetTop, w: scene.offsetWidth, h: scene.offsetHeight }]);
   st.style.setProperty('--m-img', m.img);
   st.style.setProperty('--m-size', m.size);
   st.style.setProperty('--m-pos', m.pos);
-  // 「角色狀態」框自己的底色與背景圖也要挖掉（座標換成相對於框）
-  const panel = st.querySelector('#p-chars');
-  const pm = hollow ? maskLayers(slotHoles.map(h => ({ ...h, x: h.x - panel.offsetLeft, y: h.y - panel.offsetTop }))) : null;
-  for (const pre of ['', '-webkit-']) {
-    panel.style.setProperty(pre + 'mask-image', pm ? pm.img : '');
-    panel.style.setProperty(pre + 'mask-size', pm ? pm.size : '');
-    panel.style.setProperty(pre + 'mask-position', pm ? pm.pos : '');
-    panel.style.setProperty(pre + 'mask-repeat', pm ? 'no-repeat' : '');
-  }
-  panel.style.setProperty('mask-composite', pm ? 'exclude' : '');
-  panel.style.setProperty('-webkit-mask-composite', pm ? 'xor' : '');
-  st.querySelector('#chars').classList.toggle('hollow', hollow);
 }
 
 // 跑馬燈空格在 OBS 的位置（框線內側）
@@ -535,8 +525,7 @@ function layoutSlots(st) {
     const p = posIn(el), f = fits[i];
     return {
       w: f.w, h: f.h, k: f.k,
-      box: { x: p.x, y: p.y, w: el.offsetWidth, h: el.offsetHeight },   // 角色格外框（語音頭像用）
-      inner: { x: p.x + el.clientLeft, y: p.y + el.clientTop, w: el.clientWidth, h: el.clientHeight },   // 框線內側（挖空用）
+      inner: { x: p.x + el.clientLeft, y: p.y + el.clientTop, w: el.clientWidth, h: el.clientHeight },   // 框線內側（語音背景用）
       x: Math.round(p.x + el.clientLeft + SLOT_PAD + (f.availW - f.w * f.k) / 2),
       y: Math.round(p.y + el.clientTop + SLOT_PAD),
     };
@@ -585,14 +574,6 @@ function updateObsInfo() {
     el.innerHTML = `CCFOLIA 瀏覽器來源：寬 <b>${f.w}</b> × 高 <b>${f.h}</b><br>編輯變形 → 位置 <b>${f.x}, ${f.y}</b>　大小 <b>${Math.round(f.w * f.k)} × ${Math.round(f.h * f.k)}</b>`
       + (shrink ? `<br>⚠ 放不下，已縮小成 ${Math.round(f.k * 100)}%。字會變小，建議把「單條寬度」或頭像調小。` : '');
   });
-  for (const vo of ed.querySelectorAll('[data-voiceobs]')) {
-    const id = vo.dataset.voiceobs === 'kp' ? 'kp' : +vo.dataset.voiceobs, v = voicePos(id);
-    const under = state.ccf.hollow && id !== 'kp';
-    vo.innerHTML = v ? `Reactive 瀏覽器來源：寬 <b>${v.size}</b> × 高 <b>${v.size}</b><br>編輯變形 → 位置 <b>${v.x}, ${v.y}</b>`
-        + (v.alpha < 100 ? `<br>濾鏡「色彩校正」→ 不透明度 <b>${v.alpha}%</b>` : '')
-        + `<br>放在跑團介面的<b>${under ? '下面' : '上面'}</b>${under ? '（超出角色格的部分會被介面遮住）' : ''}`
-      : id === 'kp' ? '主持人格子沒有顯示，勾選上面的「在畫面上顯示主持人格子」才會算出位置。' : '';
-  }
 }
 
 /* ---------- 編輯器預覽：用 CCFOLIA 模擬畫面疊在角色格上 ---------- */
@@ -644,40 +625,36 @@ function syncPreviews() {
   }
 }
 
-/* ---------- 語音：Reactive 單人頭像 ----------
-   在 OBS 裡是每個角色各自的瀏覽器來源（跟 CCFOLIA 來源一樣），這裡只在編輯器預覽並算出要填的位置 */
+/* ---------- 語音：Reactive 單人頭像當作格子背景 ----------
+   跟「角色狀態背景圖」一樣：嵌在角色格（主持人格）框線內，墊在 CCFOLIA 狀態條下面，可調放大縮小、左右、上下、濃度。
+   iframe 放在固定的一層（不跟著 render 重建），才不會每改一次設定就重新連線。 */
 // id：角色是索引數字，主持人是 'kp'
 const voiceFrames = new Map();
-let kpBox = null;   // 主持人格在 1920×1080 上的位置（沒顯示時是 null）
+let kpBox = null;   // 主持人格框線內側（沒顯示時是 null）
 const voiceSrc = id => id === 'kp' ? state.kp : state.characters[id];
-const voiceBox = id => id === 'kp' ? (state.kp.show ? kpBox : null) : slotInfo[id]?.box;
-// 語音頭像在 1920×1080 上的位置：所在格子左邊 + voiceX，上下置中
-function voicePos(id) {
-  const c = voiceSrc(id), b = voiceBox(id);
-  if (!c || !b) return null;
-  const size = Number(c.voiceSize) || 90, alpha = Math.max(0, Math.min(100, c.voiceAlpha ?? 100));
-  return { x: Math.round(b.x + (Number(c.voiceX) || 0)), y: Math.round(b.y + (b.h - size) / 2 + (Number(c.voiceY) || 0)), size, alpha };
-}
+const voiceBox = id => id === 'kp' ? (state.kp.show ? kpBox : null) : slotInfo[id]?.inner;
 function syncVoice() {
-  if (OUTPUT) return;
-  const ids = [...state.characters.keys(), 'kp'], keys = ids.map(String);
-  // 角色格挖空時，角色的語音頭像要在介面底下（從格子透出來）；主持人照舊在上面
-  const layerOf = id => state.ccf.hollow && id !== 'kp' ? $('#voiceUnder') : $('#voiceLayer');
-  for (const [key, fr] of voiceFrames) if (!keys.includes(key)) { fr.remove(); voiceFrames.delete(key); }
+  const layer = $('#voiceLayer'), ids = [...state.characters.keys(), 'kp'], keys = ids.map(String);
+  for (const [key, el] of voiceFrames) if (!keys.includes(key)) { el.remove(); voiceFrames.delete(key); }
   for (const id of ids) {
-    const key = String(id), url = voiceUrl(voiceSrc(id)), v = voicePos(id);
-    let fr = voiceFrames.get(key);
-    if (!url || !v) { if (fr) { fr.remove(); voiceFrames.delete(key); } continue; }
-    if (fr && fr.parentElement !== layerOf(id)) { fr.remove(); voiceFrames.delete(key); fr = null; }   // 切換挖空時換一層
-    if (!fr) {
-      fr = document.createElement('iframe');
+    const key = String(id), c = voiceSrc(id), url = voiceUrl(c), b = voiceBox(id);
+    let box = voiceFrames.get(key);
+    if (!url || !b) { if (box) { box.remove(); voiceFrames.delete(key); } continue; }
+    if (!box) {
+      box = document.createElement('div');
+      box.className = 'vbox';
+      const fr = document.createElement('iframe');
       fr.tabIndex = -1;
       fr.setAttribute('allowtransparency', 'true');
-      layerOf(id).append(fr);
-      voiceFrames.set(key, fr);
+      box.append(fr);
+      layer.append(box);
+      voiceFrames.set(key, box);
     }
+    const fr = box.firstChild;
     if (fr.dataset.src !== url) { fr.dataset.src = url; fr.src = url; }   // 只在網址改變時重新載入
-    Object.assign(fr.style, { left: v.x + 'px', top: v.y + 'px', width: v.size + 'px', height: v.size + 'px', opacity: v.alpha / 100 });
+    Object.assign(box.style, { left: b.x + 'px', top: b.y + 'px', width: b.w + 'px', height: b.h + 'px' });
+    const zoom = (Number(c.voiceZoom) || 100) / 100, alpha = Math.max(0, Math.min(100, c.voiceAlpha ?? 100)) / 100;
+    Object.assign(fr.style, { transform: `translate(${Number(c.voiceX) || 0}%, ${Number(c.voiceY) || 0}%) scale(${zoom})`, opacity: alpha });
   }
 }
 
@@ -687,7 +664,6 @@ function fit() {
   $('#stage').style.transform = tf;
   $('#sbLayer').style.transform = tf;
   $('#voiceLayer').style.transform = tf;
-  $('#voiceUnder').style.transform = tf;
 }
 window.addEventListener('resize', fit);
 // 網路字型載入後標題高度會變，角色格位置要重算（不然顯示的 OBS 位置會差幾 px）
@@ -919,7 +895,7 @@ function charBlock(c, i) {
       <p class="hint" style="color:#ffb86b;margin:2px 0 0" data-note="${i}"></p>
       <div class="charbtns"><button class="primary" data-copy="css" data-i="${i}">複製 CSS</button><button data-copy="url" data-i="${i}">複製 CCFOLIA 網址</button></div>
       <div class="obsline" data-obs="${i}"></div>
-      ${voiceFields(i, `characters.${i}`, c, '角色格')}
+      ${voiceFields(i, `characters.${i}`, c)}
     </div>`;
 }
 // Reactive 語音頭像的欄位（角色與主持人共用）
@@ -927,11 +903,11 @@ const REACTIVE_HOME = 'https://reactive.fugi.tech/';
 // 區塊標題的兩個欄位
 const labelFields = (name, key) => `<label class="f" style="color:var(--ed-text)">${name}</label>
       <div class="row"><input type="text" data-path="labels.${key}.t" value="${esc(state.labels[key].t)}" placeholder="中文標題"><input type="text" data-path="labels.${key}.e" value="${esc(state.labels[key].e)}" placeholder="英文小字"></div>`;
-const voiceFields = (id, base, c, where) => `${txt(`語音：Reactive 單人連結（可不填）<a class="ext" href="${REACTIVE_HOME}" target="_blank" rel="noopener">開啟 Reactive ↗</a>`, `${base}.voice`, 'https://reactive.fugi.tech/individual/…')}
+const voiceFields = (id, base, c) => `${txt(`語音：Reactive 單人連結（可不填）<a class="ext" href="${REACTIVE_HOME}" target="_blank" rel="noopener">開啟 Reactive ↗</a>`, `${base}.voice`, 'https://reactive.fugi.tech/individual/…')}
       <p class="hint" style="margin:2px 0 0" data-voicenote="${id}"></p>
-      ${voiceUrl(c) ? pxRange(`語音頭像：左右位置（距離${where}左邊）`, `${base}.voiceX`, -200, 400) + pxRange('語音頭像：上下位置（0 = 置中）', `${base}.voiceY`, -200, 200)
-        + pxRange('語音頭像：大小', `${base}.voiceSize`, 30, 400) + range('語音頭像：濃度', `${base}.voiceAlpha`, 10, 100)
-        + `<div class="charbtns"><button data-copy="voice" data-i="${id}">複製 Reactive 網址</button></div><div class="obsline" data-voiceobs="${id}"></div>` : ''}`;
+      ${voiceUrl(c) ? range('語音背景：濃度', `${base}.voiceAlpha`, 10, 100) + range('語音背景：縮放', `${base}.voiceZoom`, 20, 300)
+        + `<div class="row"><div>${range('左右', `${base}.voiceX`, -100, 100)}</div><div>${range('上下', `${base}.voiceY`, -100, 100)}</div></div>`
+        + `<button data-voicereset="${id}" style="margin-top:4px">重設位置與縮放</button>` : ''}`;
 function kpBlock(kp) {
   return `
     <div class="char">
@@ -940,7 +916,7 @@ function kpBlock(kp) {
       <p class="hint">不勾的時候，左欄的「角色狀態」框會往下延伸補滿空間。</p>
       <div class="row"><div>${txt('名稱', 'kp.name')}</div><div>${txt('副標', 'kp.sub')}</div><div>${txt('圖示', 'kp.icon')}</div></div>
       ${img('主持人頭像（可不填）', 'kp.avatar')}
-      ${voiceFields('kp', 'kp', kp, '主持人格')}
+      ${voiceFields('kp', 'kp', kp)}
     </div>`;
 }
 
@@ -980,8 +956,6 @@ function buildEditor() {
     <details data-k="chars"><summary>🧙 角色（${s.characters.length}）</summary><div class="sec">
       <p class="hint">每個角色一格空白，給 OBS 疊上 CCFOLIA 的「瀏覽器來源」，HP/MP/SAN 會跟著 CCFOLIA 自動更新。右邊預覽格子裡的狀態條只是用範例數值、範例頭像示範樣式，OBS 畫面上只有空格。</p>
       ${txt('CCFOLIA 房間網址', 'ccf.room', 'https://ccfolia.com/rooms/…')}
-      <label style="display:flex;align-items:center;gap:6px;margin:8px 0 2px;cursor:pointer"><input type="checkbox" data-path="ccf.hollow" ${s.ccf.hollow ? 'checked' : ''}>角色格挖空（透明，只留邊框）</label>
-      <p class="hint">勾選後角色格裡面是透明的，把每個人的 Reactive 放在 OBS 的跑團介面<b>下面</b>，就會從對應的角色格透出來，當作狀態條的底圖（超出格子的部分會被遮住）。</p>
       ${bgControls('角色狀態背景圖', 'charsBg')}
       ${kpBlock(s.kp)}
       ${chars}<button id="addChar">＋ 新增角色</button>
@@ -1037,7 +1011,7 @@ function buildEditor() {
 
 
     <details data-k="obs"><summary>📡 OBS 設定方式</summary><div class="sec">
-      <p class="hint">OBS 來源由下到上的順序：<b>劇情畫面的圖片／影片 →（角色格挖空時：各角色的 Reactive）→ 跑團介面 → 各角色的 CCFOLIA →（沒挖空時：各角色的 Reactive）</b>（場內、場外、聊天室、Live2D 等也放在跑團介面上面）。</p>
+      <p class="hint">OBS 來源由下到上的順序：<b>劇情畫面的圖片／影片 → 跑團介面 → 各角色的 CCFOLIA</b>（場內、場外、聊天室、Live2D 等也放在跑團介面上面）。</p>
       <ol class="note-ol">
         <li>OBS 的畫布設 1920×1080。介面本身用「瀏覽器來源」，網址貼上「複製 OBS 網址」的內容（或勾「本機檔案」選「儲存 OBS 檔案」存的檔），寬 1920、高 1080，位置 0, 0。</li>
         <li>每個角色各「新增來源 → 瀏覽器」，網址貼上該角色的「複製 CCFOLIA 網址」，寬高填角色底下顯示的 <b>CCFOLIA 瀏覽器來源</b>尺寸。</li>
@@ -1045,7 +1019,7 @@ function buildEditor() {
         <li>角色的來源放在跑團介面的<b>上面</b>，右鍵 →「變形 → 編輯變形」，填入顯示的<b>位置</b>與<b>大小</b>，就會剛好落在角色格裡（「邊界框類型」保持「無邊界框」）。</li>
         <li>畫面一片空白時：來源右鍵 →「互動」，登入 CCFOLIA 並進入房間（做過一次就會記住）。</li>
         <li>第二位角色開始請<b>重新「新增來源」</b>建立，不要用「貼上（參照）」，否則全部都會變成同一個角色。</li>
-        <li>有語音頭像的角色（主持人也一樣）：先到 <a class="ext" href="https://reactive.fugi.tech/" target="_blank" rel="noopener">Reactive ↗</a> 複製每個人的單人連結，再「新增來源 → 瀏覽器」，網址貼「複製 Reactive 網址」，寬高與位置照角色底下的 <b>Reactive 瀏覽器來源</b>數字填。放在該角色 CCFOLIA 來源的<b>上面</b>（不會被狀態條蓋住），兩個來源選起來按右鍵「群組選取的項目」，之後就會一起移動。</li>
+        <li>語音頭像（Reactive）是嵌在跑團介面裡的角色格背景，OBS 不用另外加來源；先到 <a class="ext" href="https://reactive.fugi.tech/" target="_blank" rel="noopener">Reactive ↗</a> 複製每個人的單人連結貼到角色欄位就好。</li>
       </ol>
       <p class="hint">CCFOLIA 角色「狀態」的排列順序對應第 1、2、3 條的顏色（例：HP → MP → SAN）。聊天室輸入 <code>:HP-3</code>、<code>:SAN=45</code> 之類的指令，OBS 也會立刻更新。改了狀態條樣式、人數或角色的名字／副標題之後，要重新複製各角色的 CSS、核對尺寸與位置，跑團介面本身也要重新「複製 OBS 網址」或「儲存 OBS 檔案」（角色格會跟著變）。</p>
     </div></details>`;
@@ -1059,9 +1033,8 @@ function updateCharNotes() {
     const isKp = el.dataset.voicenote === 'kp', c = voiceSrc(isKp ? 'kp' : +el.dataset.voicenote), v = String(c.voice || '').trim();
     el.style.color = '#ffb86b';
     el.textContent = !v ? '' : !voiceUrl(c) ? '要貼 https://reactive.fugi.tech/ 開頭的網址。'
-      : (el.style.color = '', isKp ? '在 OBS 另外新增一個瀏覽器來源放這個 Reactive 網址，照下面的數字擺在主持人格子上。'
-        : state.ccf.hollow ? '在 OBS 另外新增一個瀏覽器來源放這個 Reactive 網址，放在跑團介面「下面」，就會從挖空的角色格透出來（超出格子的部分會被遮住）。圖如果大到蓋到隔壁的格子，也會從那格透出來，請調小或在 OBS 用「裁切」。大小、位置、濃度也可以直接在 OBS 調。'
-        : '在 OBS 另外新增一個瀏覽器來源放這個 Reactive 網址，照下面的數字擺，再跟這個角色的 CCFOLIA 來源設成同一個群組，就會一起移動。');
+      : (el.style.color = '', isKp ? 'Reactive 會當作主持人格的背景（不會超出格子），OBS 不用另外加來源。'
+        : 'Reactive 會當作這個角色格的背景，墊在狀態條下面、不會超出格子，OBS 不用另外加來源。說話時的反應（換圖、跳動、變亮）請在 Reactive 後台設定。');
   }
   for (const el of ed.querySelectorAll('[data-note]')) {
     const c = state.characters[el.dataset.note];
@@ -1076,7 +1049,7 @@ ed.addEventListener('input', e => {
   if (!p) return;
   if (t.value === '(已上傳圖片)') return;
   setPath(p, t.type === 'checkbox' ? t.checked : 'num' in t.dataset ? (t.value === '' ? '' : Number(t.value)) : t.value);
-  if (['kp.show', 'talk.show', 'marquee.show', 'notesPanel.show', 'ccf.hollow'].includes(p)) buildEditor();
+  if (['kp.show', 'talk.show', 'marquee.show', 'notesPanel.show'].includes(p)) buildEditor();
   if (p === 'ccf.followTheme') {
     if (!t.checked) applyThemeColors(state.sb);   // 取消時保留目前看到的顏色
     commit(); buildEditor(); return;
@@ -1118,10 +1091,7 @@ ed.addEventListener('click', e => {
     commit(); buildEditor(); toast(`已套用「${P.DESIGNS[key].label}」`);
   } else if (t.dataset.copy) {
     const i = t.dataset.i === 'kp' ? 'kp' : +t.dataset.i, c = i === 'kp' ? state.kp : cs[i];
-    if (t.dataset.copy === 'voice') {
-      const v = voicePos(i);
-      copyText(voiceUrl(c)).then(ok => toast(ok ? `已複製「${c.name}」的 Reactive 網址（來源 ${v?.size}×${v?.size}）` : '複製失敗'));
-    } else if (t.dataset.copy === 'url') {
+    if (t.dataset.copy === 'url') {
       const url = charUrl(c);
       if (!url) return toast('需要同時填入房間網址與角色 ID');
       copyText(url).then(ok => toast(ok ? `已複製「${c.name}」的 CCFOLIA 網址` : '複製失敗'));
@@ -1140,7 +1110,7 @@ ed.addEventListener('click', e => {
   } else if (t.dataset.clear) {
     setPath(t.dataset.clear, ''); buildEditor(); commit();
   } else if (t.id === 'addChar') {
-    cs.push({ name: '新角色', color: '#c4b5fd', sub: '', ccf: '', voice: '', voiceX: 280, voiceY: 0, voiceSize: 90, voiceAlpha: 100 });
+    cs.push({ name: '新角色', color: '#c4b5fd', sub: '', ccf: '', voice: '', voiceZoom: 100, voiceX: 0, voiceY: 0, voiceAlpha: 100 });
     buildEditor(); commit();
   } else if (t.id === 'obsUrl') {
     obsUrl().then(url => {
@@ -1156,6 +1126,9 @@ ed.addEventListener('click', e => {
   } else if (t.dataset.fit) {
     const [key, fit] = t.dataset.fit.split(':');
     state[key].fit = fit; buildEditor(); commit();
+  } else if (t.dataset.voicereset) {
+    Object.assign(voiceSrc(t.dataset.voicereset === 'kp' ? 'kp' : +t.dataset.voicereset), { voiceZoom: 100, voiceX: 0, voiceY: 0 });
+    buildEditor(); commit();
   } else if (t.dataset.bgreset) {
     Object.assign(state[t.dataset.bgreset], { zoom: 100, x: 0, y: 0 }); buildEditor(); commit();
   } else if (t.dataset.mode) {
