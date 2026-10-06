@@ -16,6 +16,7 @@ html,body{margin:0;height:100%;background:#0b0910;color:var(--ed-text);font-fami
 /* ================= 編輯器 ================= */
 #editor{width:420px;flex:none;overflow-y:auto;background:var(--ed-bg);border-right:1px solid var(--ed-line);padding:12px 14px 40px;font-family:"Microsoft JhengHei",sans-serif;font-size:13px}
 #editor h1{font-size:17px;margin:4px 0 10px;letter-spacing:1px}
+#editor h1 .ver{font-size:12px;font-weight:normal;color:var(--ed-dim);margin-left:8px;letter-spacing:0}
 .toolbar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
 button,.btn{background:#2a2238;color:var(--ed-text);border:1px solid var(--ed-line);border-radius:6px;padding:5px 10px;font:inherit;cursor:pointer}
 button:hover,.btn:hover{border-color:var(--ed-acc)}
@@ -219,6 +220,8 @@ body.output #sbLayer,body.output #voiceLayer{display:none}
 <script src="statusbar/mock.v1.js"></script>
 <script src="statusbar/pcfonts.v1.js"></script>
 <script>
+// 版號：每次有小功能改動 +0.01；單純改錯字或微調同一件事不用加
+const VERSION = '1.00';
 const KEY = 'trpg-overlay-v1';
 const OUTPUT = new URLSearchParams(location.search).get('view') === 'output';
 // OBS 瀏覽器來源讀不到 Chrome 的存檔，所以設定直接壓縮編在網址 #s= 後面（「複製 OBS 網址」產生）
@@ -898,7 +901,7 @@ function buildEditor() {
   const chars = s.characters.map((c, i) => charBlock(c, i)).join('');
 
   $('#editor').innerHTML = `
-    <h1>🎲 TRPG 跑團介面產生器</h1>
+    <h1>🎲 TRPG 跑團介面產生器<span class="ver">v${VERSION}</span></h1>
     <div class="toolbar">
       <button class="primary" id="obsUrl">複製 OBS 網址</button>
       <button id="obsFile">儲存 OBS 檔案</button>
