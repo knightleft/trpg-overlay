@@ -117,7 +117,7 @@ html:has(body.output),body.output,body.output #wrap{background:transparent!impor
 .sinfo:is([data-deco=front],[data-deco=both]) :is(.a,.solo)::before{content:"✦";color:var(--acc);margin-right:.45em;font-size:.55em;vertical-align:.25em}
 .sinfo[data-deco=both] .b::after{content:"✦";color:var(--acc);margin-left:.45em;font-size:.55em;vertical-align:.25em}
 .lower{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:14px}
-/* 雜談區關閉時，對話區延伸成一整條 */
+/* 場外關閉時，場內延伸成一整條 */
 .lower.solo{grid-template-columns:1fr}
 
 /* 右側 */
@@ -259,7 +259,9 @@ const DEFAULT = {
   // sizes: 編輯器量到的各角色瀏覽器來源尺寸，OBS 輸出畫面靠它排出一樣的角色格
   ccf: { room: '', followTheme: true, sizes: [] },
   sb: defaultSb(),
-  talk: { show: true },   // 雜談區；不顯示時對話區延伸成一整條
+  talk: { show: true },   // 場外（玩家閒聊）區；不顯示時場內延伸成一整條
+  // 可自訂的區塊標題：t = 中文標題、e = 下方英文小字
+  labels: { scene: { t: '場內・劇情扮演', e: 'DICE & ROLEPLAY' }, free: { t: '場外・玩家閒聊', e: 'PLAYER TALK' }, chat: { t: '聊天室', e: 'LIVE CHAT' } },
   marquee: { show: true, height: 44 },   // 跑馬燈空格（疊在 VTuber 框內下緣）
   vt: { height: 420 },   // VTuber 格高度
   kp: { show: false, name: '主持人', sub: 'GAME MASTER', avatar: '', icon: '🐙', voice: '', voiceX: 300, voiceSize: 90 },
@@ -281,7 +283,7 @@ function fixState(s) {
     const size = (sc.lines == 2 ? sc.size2 : sc.size1) ?? sc.size;
     if (size !== undefined) sc.sizeB = size;
   }
-  for (const k of ['charsBg', 'vtBg', 'ccf', 'scene', 'talk', 'marquee', 'vt', 'kp']) s[k] = { ...DEFAULT[k], ...s[k] };
+  for (const k of ['charsBg', 'vtBg', 'ccf', 'scene', 'talk', 'marquee', 'vt', 'kp', 'labels']) s[k] = { ...DEFAULT[k], ...s[k] };
   s.sb = s.sb ? M.normalize(s.sb) : defaultSb();
   if (Array.isArray(s.characters)) s.characters = s.characters.map(c => ({ ccf: '', voice: '', voiceX: s.voice?.x ?? 280, voiceSize: s.voice?.size ?? 90, ...c }));   // 舊版共用的語音頭像設定分給每個角色
   // 清掉已經拿掉的功能留下的欄位（存檔與 OBS 網址都會變小）
@@ -389,6 +391,8 @@ function sinfoHtml(sc) {
   return `<div class="sinfo" data-deco="${esc(sc.deco)}" style="font-size:${Math.max(sa, sb)}px">${rows.map(([x, y]) =>
     has(x) ? cell('a', x, sa) + cell('b', y, sb) : cell('b solo', y, sb)).join('')}</div>`;
 }
+// 區塊標題（中文＋英文小字），兩行都空就不顯示
+const phHtml = l => (l?.t || l?.e) ? `<div class="ph"><div class="t">${esc(l.t)}</div><div class="e">${esc(l.e)}</div></div>` : '';
 function render() {
   const s = state;
   const st = $('#stage');
@@ -410,13 +414,13 @@ function render() {
       ${sinfoHtml(s.scene)}
     </div>
     <div class="lower${s.talk.show ? '' : ' solo'}">
-      <div class="panel"><div class="ph"><div class="t">TRPG 對話區</div><div class="e">DICE &amp; ROLEPLAY</div></div></div>
-      ${s.talk.show ? '<div class="panel"><div class="ph"><div class="t">雜談區</div><div class="e">FREE TALK</div></div></div>' : ''}
+      <div class="panel">${phHtml(s.labels.scene)}</div>
+      ${s.talk.show ? `<div class="panel">${phHtml(s.labels.free)}</div>` : ''}
     </div>
   </div>
   <div class="col">
     <div class="panel" id="p-vt" style="height:${Math.max(200, Number(s.vt.height) || 420)}px">${panelBg('vtBg')}${s.twitter ? `<div id="p-tw"><div class="tw">${esc(s.twitter)}</div></div>` : ""}${s.marquee.show ? `<div id="marq" style="height:${Math.max(20, Number(s.marquee.height) || 44)}px"></div>` : ''}</div>
-    <div class="panel" id="p-chat"><div class="ph"><div class="t">實況聊天室</div><div class="e">LIVE CHAT</div></div></div>
+    <div class="panel" id="p-chat">${phHtml(s.labels.chat)}</div>
     <div class="panel" id="p-notes"><div class="ph"><div class="t">劇情筆記</div><div class="e">NOTE</div></div><div id="notes">${notesHtml}</div></div>
   </div>
   <div class="panel" id="bar">
@@ -837,6 +841,9 @@ function charBlock(c, i) {
 }
 // Reactive 語音頭像的欄位（角色與主持人共用）
 const REACTIVE_HOME = 'https://reactive.fugi.tech/';
+// 區塊標題的兩個欄位
+const labelFields = (name, key) => `<label class="f" style="color:var(--ed-text)">${name}</label>
+      <div class="row"><input type="text" data-path="labels.${key}.t" value="${esc(state.labels[key].t)}" placeholder="中文標題"><input type="text" data-path="labels.${key}.e" value="${esc(state.labels[key].e)}" placeholder="英文小字"></div>`;
 const voiceFields = (id, base, c, where) => `${txt(`語音：Reactive 單人連結（可不填）<a class="ext" href="${REACTIVE_HOME}" target="_blank" rel="noopener">開啟 Reactive ↗</a>`, `${base}.voice`, 'https://reactive.fugi.tech/individual/…')}
       <p class="hint" style="margin:2px 0 0" data-voicenote="${id}"></p>
       ${voiceUrl(c) ? pxRange(`語音頭像：左右位置（距離${where}左邊）`, `${base}.voiceX`, 0, 380) + pxRange('語音頭像：大小', `${base}.voiceSize`, 30, 160)
@@ -910,9 +917,13 @@ function buildEditor() {
 
     </div></details>
 
-    <details data-k="talk"><summary>💬 對話區・雜談區${s.talk.show ? '' : '（雜談區隱藏中）'}</summary><div class="sec">
-      <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer"><input type="checkbox" data-path="talk.show" ${s.talk.show ? 'checked' : ''}>在畫面上顯示雜談區</label>
-      <p class="hint">不勾的時候（例如語音團用不到雜談），TRPG 對話區會往右延伸成一整條。兩個區塊都只有標題，內容由 OBS 疊上去。</p>
+    <details data-k="talk"><summary>💬 場內・場外・聊天室${s.talk.show ? '' : '（場外隱藏中）'}</summary><div class="sec">
+      <p class="hint">這幾個區塊都只有標題，內容由 OBS 疊上去。標題可以自己改，兩行都留空就不顯示標題。</p>
+      ${labelFields('場內（劇情畫面下方左邊）', 'scene')}
+      <label style="display:flex;align-items:center;gap:6px;margin:10px 0 4px;cursor:pointer"><input type="checkbox" data-path="talk.show" ${s.talk.show ? 'checked' : ''}>在畫面上顯示場外區</label>
+      <p class="hint">不勾的時候（例如語音團用不到場外閒聊），場內會往右延伸成一整條。</p>
+      ${s.talk.show ? labelFields('場外（劇情畫面下方右邊）', 'free') : ''}
+      ${labelFields('聊天室（右欄）', 'chat')}
     </div></details>
 
     <details data-k="vt"><summary>🌙 VTuber 區</summary><div class="sec">
@@ -936,7 +947,7 @@ function buildEditor() {
 
 
     <details data-k="obs"><summary>📡 OBS 設定方式</summary><div class="sec">
-      <p class="hint">OBS 來源由下到上的順序：<b>劇情畫面的圖片／影片 → 跑團介面 → 各角色的 CCFOLIA → 各角色的 Reactive</b>（對話區、聊天室、Live2D 等也放在跑團介面上面）。</p>
+      <p class="hint">OBS 來源由下到上的順序：<b>劇情畫面的圖片／影片 → 跑團介面 → 各角色的 CCFOLIA → 各角色的 Reactive</b>（場內、場外、聊天室、Live2D 等也放在跑團介面上面）。</p>
       <ol class="note-ol">
         <li>OBS 的畫布設 1920×1080。介面本身用「瀏覽器來源」，網址貼上「複製 OBS 網址」的內容（或勾「本機檔案」選「儲存 OBS 檔案」存的檔），寬 1920、高 1080，位置 0, 0。</li>
         <li>每個角色各「新增來源 → 瀏覽器」，網址貼上該角色的「複製 CCFOLIA 網址」，寬高填角色底下顯示的 <b>CCFOLIA 瀏覽器來源</b>尺寸。</li>
