@@ -835,6 +835,17 @@ function buildEditor() {
       ・<b>有上傳圖片（含 GIF）</b>：網址會太長，改按「儲存 OBS 檔案」，OBS 瀏覽器來源勾「本機檔案」選這個檔。之後再存會覆蓋同一個檔，到 OBS 對來源按右鍵「重新整理」。<br>
       完整步驟見下方「📡 OBS 設定方式」。</p>
 
+    <details data-k="theme"><summary>🎨 介面配色</summary><div class="sec">
+      <label class="f">介面模式</label>
+      <div class="seg"><button data-mode="dark" class="${s.theme.mode === 'dark' ? 'on' : ''}">🌙 深色</button><button data-mode="light" class="${s.theme.mode === 'light' ? 'on' : ''}">☀️ 淺色</button></div>
+      <label class="f">五色（同 Realtime Colors 的順序）</label>
+      <div class="swatches">${COLOR_KEYS.map(([k, lb]) => `<label><input type="color" data-path="theme.colors.${k}" value="${esc(s.theme.colors[k])}">${lb}</label>`).join('')}</div>
+      <div class="toolbar" style="margin-top:8px"><button class="primary" id="randColor">🎲 隨機配色</button><button id="resetColor">恢復預設</button><a class="btn" id="rtcLink" href="${rtcUrl()}" target="_blank" style="text-decoration:none">在 Realtime Colors 開啟</a></div>
+      <label class="f">貼上 Realtime Colors 網址套用</label>
+      <div class="img-in"><input type="text" id="rtcIn" placeholder="https://www.realtimecolors.com/?colors=…"><button id="rtcApply" class="primary">套用</button></div>
+      <p class="hint">可以在 Realtime Colors 一直按空白鍵換隨機配色，看到喜歡的就複製網址貼回來。不管原本是深色還是淺色配色，都會依上面選的模式自動反轉明暗。</p>
+    </div></details>
+
     <details data-k="chars"><summary>🧙 角色（${s.characters.length}）</summary><div class="sec">
       <p class="hint">每個角色一格空白，給 OBS 疊上 CCFOLIA 的「瀏覽器來源」，HP/MP/SAN 會跟著 CCFOLIA 自動更新。右邊預覽格子裡的狀態條只是用範例數值、範例頭像示範樣式，OBS 畫面上只有空格。</p>
       ${txt('CCFOLIA 房間網址', 'ccf.room', 'https://ccfolia.com/rooms/…')}
@@ -880,16 +891,6 @@ function buildEditor() {
       ${txt('今日標題', 'title')}${txt('副標', 'subtitle')}${txt('Hashtag（空白分隔）', 'hashtags')}
     </div></details>
 
-    <details data-k="theme" open><summary>🎨 配色</summary><div class="sec">
-      <label class="f">介面模式</label>
-      <div class="seg"><button data-mode="dark" class="${s.theme.mode === 'dark' ? 'on' : ''}">🌙 深色</button><button data-mode="light" class="${s.theme.mode === 'light' ? 'on' : ''}">☀️ 淺色</button></div>
-      <label class="f">五色（同 Realtime Colors 的順序）</label>
-      <div class="swatches">${COLOR_KEYS.map(([k, lb]) => `<label><input type="color" data-path="theme.colors.${k}" value="${esc(s.theme.colors[k])}">${lb}</label>`).join('')}</div>
-      <div class="toolbar" style="margin-top:8px"><button class="primary" id="randColor">🎲 隨機配色</button><button id="resetColor">恢復預設</button><a class="btn" id="rtcLink" href="${rtcUrl()}" target="_blank" style="text-decoration:none">在 Realtime Colors 開啟</a></div>
-      <label class="f">貼上 Realtime Colors 網址套用</label>
-      <div class="img-in"><input type="text" id="rtcIn" placeholder="https://www.realtimecolors.com/?colors=…"><button id="rtcApply" class="primary">套用</button></div>
-      <p class="hint">可以在 Realtime Colors 一直按空白鍵換隨機配色，看到喜歡的就複製網址貼回來。不管原本是深色還是淺色配色，都會依上面選的模式自動反轉明暗。</p>
-    </div></details>
 
     <details data-k="obs"><summary>📡 OBS 設定方式</summary><div class="sec">
       <p class="hint">OBS 來源由下到上的順序：<b>劇情畫面的圖片／影片 → 跑團介面 → 各角色的 CCFOLIA → 各角色的 Reactive</b>（對話區、聊天室、Live2D 等也放在跑團介面上面）。</p>
