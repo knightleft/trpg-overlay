@@ -221,7 +221,7 @@ body.output #sbLayer,body.output #voiceLayer{display:none}
 <script src="statusbar/pcfonts.v1.js"></script>
 <script>
 // 版號：每次有小功能改動 +0.01；單純改錯字或微調同一件事不用加
-const VERSION = '1.00';
+const VERSION = '1.01';
 const KEY = 'trpg-overlay-v1';
 const OUTPUT = new URLSearchParams(location.search).get('view') === 'output';
 // OBS 瀏覽器來源讀不到 Chrome 的存檔，所以設定直接壓縮編在網址 #s= 後面（「複製 OBS 網址」產生）
@@ -291,9 +291,10 @@ function fixState(s) {
   s.labels = Object.fromEntries(Object.entries(DEFAULT.labels).map(([k, v]) => [k, { ...v, ...s.labels[k] }]));   // 新增的標題也補上預設
   s.sb = s.sb ? M.normalize(s.sb) : defaultSb();
   if (Array.isArray(s.characters)) s.characters = s.characters.map(c => ({ sub: '', ccf: '', voice: '', voiceX: s.voice?.x ?? 280, voiceSize: s.voice?.size ?? 90, ...c }));   // 舊版共用的語音頭像設定分給每個角色
+  delete s._v;
   // 清掉已經拿掉的功能留下的欄位（存檔與 OBS 網址都會變小）
   delete s.voice;
-  for (const k of ['mode', 'avatars']) delete s.ccf[k];
+  for (const k of ['mode', 'avatars', 'cols']) delete s.ccf[k];
   for (const k of ['text', 'bg', 'time', 'place', 'line1', 'line2', 'size', 'size1', 'size2']) delete s.scene[k];
   if (Array.isArray(s.characters)) for (const c of s.characters) for (const k of ['icon', 'avatar', 'hp', 'hpMax', 'mp', 'mpMax', 'san', 'sanMax']) delete c[k];
   return Object.assign(structuredClone(DEFAULT), s);
@@ -309,16 +310,21 @@ let saveTimer;
 function commit() {
   if (state.ccf.followTheme) applyThemeColors(state.sb);
   render();
-  if (bc) bc.postMessage(state);
+  if (bc) bc.postMessage({ v: VERSION, state });
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    try { localStorage.setItem(KEY, JSON.stringify(state)); }
+    try { localStorage.setItem(KEY, JSON.stringify({ ...state, _v: VERSION })); }
     catch (e) { toast('儲存失敗：上傳的圖片太大，建議改用圖片網址'); }
   }, 300);
 }
 // 網址帶設定時只照網址顯示，不跟瀏覽器存檔同步
-if (bc && !PACKED) bc.onmessage = e => { state = e.data; render(); if (!OUTPUT) buildEditor(); };
-if (!PACKED) window.addEventListener('storage', e => { if (e.key === KEY) { state = load(); render(); } });
+// 只接受同一個版本的分頁傳來的設定（舊版分頁不認得新欄位，同步過來會把新設定洗掉）
+if (bc && !PACKED) bc.onmessage = e => { if (e.data?.v !== VERSION) return; state = e.data.state; render(); if (!OUTPUT) buildEditor(); };
+if (!PACKED) window.addEventListener('storage', e => {
+  if (e.key !== KEY) return;
+  try { if (JSON.parse(e.newValue)?._v !== VERSION) return; } catch (err) { return; }
+  state = load(); render(); if (!OUTPUT) buildEditor();
+});
 
 /* ---------- 設定 ⇄ 網址 ---------- */
 // OBS 瀏覽器來源的網址欄是 Qt 的單行輸入框，最多 32767 字；瀏覽器本身的網址上限約 2MB
@@ -834,7 +840,7 @@ function sbEditor() {
         ${SR('', sChk('name.vertical', '改為直書'), 'name.pos=left')}
         ${SR('', sChk('name.fitHeight', '過長的名字依狀態條高度換行'), 'name.pos=left&name.vertical=true')}
         ${SR('與狀態條的距離', sRange('name.gap', 0, 40, 1, 'px'), 'name.pos!=avatar')}`)}
-      <p class="hint">CCFOLIA 的這個畫面本身沒有名字，名字會寫進每個角色的 CSS 裡（用上面角色的「名字」）。</p>`)}
+      <p class="hint">CCFOLIA 的這個畫面本身沒有名字，名字與副標題會寫進每個角色的 CSS 裡（用「🧙 角色」裡填的內容）。</p>`)}
 
     ${panel('effects', `
       ${SG('瀕危效果')}
@@ -993,7 +999,7 @@ function buildEditor() {
         <li>第二位角色開始請<b>重新「新增來源」</b>建立，不要用「貼上（參照）」，否則全部都會變成同一個角色。</li>
         <li>有語音頭像的角色（主持人也一樣）：先到 <a class="ext" href="https://reactive.fugi.tech/" target="_blank" rel="noopener">Reactive ↗</a> 複製每個人的單人連結，再「新增來源 → 瀏覽器」，網址貼「複製 Reactive 網址」，寬高與位置照角色底下的 <b>Reactive 瀏覽器來源</b>數字填。放在該角色 CCFOLIA 來源的<b>上面</b>（不會被狀態條蓋住），兩個來源選起來按右鍵「群組選取的項目」，之後就會一起移動。</li>
       </ol>
-      <p class="hint">CCFOLIA 角色「狀態」的排列順序對應第 1、2、3 條的顏色（例：HP → MP → SAN）。聊天室輸入 <code>:HP-3</code>、<code>:SAN=45</code> 之類的指令，OBS 也會立刻更新。改了狀態條樣式或人數之後，要重新複製各角色的 CSS、核對尺寸與位置，跑團介面本身也要重新「複製 OBS 網址」或「儲存 OBS 檔案」（角色格會跟著變）。</p>
+      <p class="hint">CCFOLIA 角色「狀態」的排列順序對應第 1、2、3 條的顏色（例：HP → MP → SAN）。聊天室輸入 <code>:HP-3</code>、<code>:SAN=45</code> 之類的指令，OBS 也會立刻更新。改了狀態條樣式、人數或角色的名字／副標題之後，要重新複製各角色的 CSS、核對尺寸與位置，跑團介面本身也要重新「複製 OBS 網址」或「儲存 OBS 檔案」（角色格會跟著變）。</p>
     </div></details>`;
   if (wasOpen) for (const d of ed.querySelectorAll('details')) d.open = wasOpen.has(d.dataset.k);
   sbRefresh();
@@ -1123,7 +1129,8 @@ ed.addEventListener('change', e => {
   if (t.dataset.path === 'sb.layout.count' || /^(characters\.\d+|kp)\.voice$/.test(t.dataset.path || '')) buildEditor();
   if (t.id === 'sbDesign') $('#sbDesignDesc').textContent = P.DESIGNS[t.value]?.desc || '';
   if (t.dataset.upload && t.files[0]) {
-    readImage(t.files[0]).then(url => { setPath(t.dataset.upload, url); buildEditor(); commit(); });
+    // 主持人頭像只顯示 80px，存 256px 就夠；背景圖最寬顯示 400px，存 960px 放大也清楚
+    readImage(t.files[0], t.dataset.upload === 'kp.avatar' ? 256 : 960).then(url => { setPath(t.dataset.upload, url); buildEditor(); commit(); });
   } else if (t.id === 'imp' && t.files[0]) {
     t.files[0].text().then(tx => {
       try { state = fixState(JSON.parse(tx)); buildEditor(); commit(); toast('已匯入'); }
