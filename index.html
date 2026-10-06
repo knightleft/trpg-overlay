@@ -835,6 +835,22 @@ function buildEditor() {
       ・<b>有上傳圖片（含 GIF）</b>：網址會太長，改按「儲存 OBS 檔案」，OBS 瀏覽器來源勾「本機檔案」選這個檔。之後再存會覆蓋同一個檔，到 OBS 對來源按右鍵「重新整理」。<br>
       完整步驟見下方「📡 OBS 設定方式」。</p>
 
+    <details data-k="chars"><summary>🧙 角色（${s.characters.length}）</summary><div class="sec">
+      <p class="hint">每個角色一格空白，給 OBS 疊上 CCFOLIA 的「瀏覽器來源」，HP/MP/SAN 會跟著 CCFOLIA 自動更新。右邊預覽格子裡的狀態條只是用範例數值、範例頭像示範樣式，OBS 畫面上只有空格。</p>
+      ${txt('CCFOLIA 房間網址', 'ccf.room', 'https://ccfolia.com/rooms/…')}
+      ${bgControls('角色狀態背景圖', 'charsBg')}
+      ${chars}<button id="addChar">＋ 新增角色</button>
+    </div></details>
+
+    <details data-k="sb"><summary>📊 CCFOLIA 狀態條樣式</summary><div class="sec">${sbEditor()}</div></details>
+
+    <details data-k="kp"><summary>🐙 主持人${s.kp.show ? "" : "（隱藏中）"}</summary><div class="sec">
+      <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer"><input type="checkbox" data-path="kp.show" ${s.kp.show ? "checked" : ""}>在畫面上顯示主持人格子</label>
+      <p class="hint">不勾的時候，左欄的「角色狀態」框會往下延伸補滿空間。</p>
+      <div class="row"><div>${txt('名稱', 'kp.name')}</div><div>${txt('副標', 'kp.sub')}</div><div>${txt('圖示', 'kp.icon')}</div></div>
+      ${img('主持人頭像（可不填）', 'kp.avatar')}
+    </div></details>
+
     <details data-k="scene"><summary>📜 劇情畫面</summary><div class="sec">
       <p class="hint">16:9 區域是挖空的（只留外框，裡面透明），在 OBS 把圖片、遊戲畫面或影片放在這個介面的<b>下面</b>就會透出來。右上角可以放一到五行「前段＋後段」文字，例如「地點　S市」；整行留空就不顯示，前段留空時只顯示後段。</p>
       <label class="f">行數</label>
@@ -848,39 +864,9 @@ function buildEditor() {
 
     </div></details>
 
-    <details data-k="chars"><summary>🧙 角色（${s.characters.length}）</summary><div class="sec">
-      <p class="hint">每個角色一格空白，給 OBS 疊上 CCFOLIA 的「瀏覽器來源」，HP/MP/SAN 會跟著 CCFOLIA 自動更新。右邊預覽格子裡的狀態條只是用範例數值、範例頭像示範樣式，OBS 畫面上只有空格。</p>
-      ${txt('CCFOLIA 房間網址', 'ccf.room', 'https://ccfolia.com/rooms/…')}
-      ${bgControls('角色狀態背景圖', 'charsBg')}
-      ${chars}<button id="addChar">＋ 新增角色</button>
-    </div></details>
-
-    <details data-k="sb"><summary>📊 CCFOLIA 狀態條樣式</summary><div class="sec">${sbEditor()}</div></details>
-
-    <details data-k="obs"><summary>📡 OBS 設定方式</summary><div class="sec">
-      <p class="hint">OBS 來源由下到上的順序：<b>劇情畫面的圖片／影片 → 跑團介面 → 各角色的 CCFOLIA → 各角色的 Reactive</b>（對話區、聊天室、Live2D 等也放在跑團介面上面）。</p>
-      <ol class="note-ol">
-        <li>OBS 的畫布設 1920×1080。介面本身用「瀏覽器來源」，網址貼上「複製 OBS 網址」的內容（或勾「本機檔案」選「儲存 OBS 檔案」存的檔），寬 1920、高 1080，位置 0, 0。</li>
-        <li>每個角色各「新增來源 → 瀏覽器」，網址貼上該角色的「複製 CCFOLIA 網址」，寬高填角色底下顯示的 <b>CCFOLIA 瀏覽器來源</b>尺寸。</li>
-        <li>把「自訂 CSS」欄位清空，貼上該角色的「複製 CSS」。</li>
-        <li>角色的來源放在跑團介面的<b>上面</b>，右鍵 →「變形 → 編輯變形」，填入顯示的<b>位置</b>與<b>大小</b>，就會剛好落在角色格裡（「邊界框類型」保持「無邊界框」）。</li>
-        <li>畫面一片空白時：來源右鍵 →「互動」，登入 CCFOLIA 並進入房間（做過一次就會記住）。</li>
-        <li>第二位角色開始請<b>重新「新增來源」</b>建立，不要用「貼上（參照）」，否則全部都會變成同一個角色。</li>
-        <li>有語音頭像的角色：再「新增來源 → 瀏覽器」，網址貼「複製 Reactive 網址」，寬高與位置照角色底下的 <b>Reactive 瀏覽器來源</b>數字填。放在該角色 CCFOLIA 來源的<b>上面</b>（不會被狀態條蓋住），兩個來源選起來按右鍵「群組選取的項目」，之後就會一起移動。</li>
-      </ol>
-      <p class="hint">CCFOLIA 角色「狀態」的排列順序對應第 1、2、3 條的顏色（例：HP → MP → SAN）。聊天室輸入 <code>:HP-3</code>、<code>:SAN=45</code> 之類的指令，OBS 也會立刻更新。改了狀態條樣式或人數之後，要重新複製各角色的 CSS、核對尺寸與位置，跑團介面本身也要重新「複製 OBS 網址」或「儲存 OBS 檔案」（角色格會跟著變）。</p>
-    </div></details>
-
     <details data-k="talk"><summary>💬 對話區・雜談區${s.talk.show ? '' : '（雜談區隱藏中）'}</summary><div class="sec">
       <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer"><input type="checkbox" data-path="talk.show" ${s.talk.show ? 'checked' : ''}>在畫面上顯示雜談區</label>
       <p class="hint">不勾的時候（例如語音團用不到雜談），TRPG 對話區會往右延伸成一整條。兩個區塊都只有標題，內容由 OBS 疊上去。</p>
-    </div></details>
-
-    <details data-k="kp"><summary>🐙 主持人${s.kp.show ? "" : "（隱藏中）"}</summary><div class="sec">
-      <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer"><input type="checkbox" data-path="kp.show" ${s.kp.show ? "checked" : ""}>在畫面上顯示主持人格子</label>
-      <p class="hint">不勾的時候，左欄的「角色狀態」框會往下延伸補滿空間。</p>
-      <div class="row"><div>${txt('名稱', 'kp.name')}</div><div>${txt('副標', 'kp.sub')}</div><div>${txt('圖示', 'kp.icon')}</div></div>
-      ${img('主持人頭像（可不填）', 'kp.avatar')}
     </div></details>
 
     <details data-k="vt"><summary>🌙 VTuber 區</summary><div class="sec">
@@ -903,6 +889,20 @@ function buildEditor() {
       <label class="f">貼上 Realtime Colors 網址套用</label>
       <div class="img-in"><input type="text" id="rtcIn" placeholder="https://www.realtimecolors.com/?colors=…"><button id="rtcApply" class="primary">套用</button></div>
       <p class="hint">可以在 Realtime Colors 一直按空白鍵換隨機配色，看到喜歡的就複製網址貼回來。不管原本是深色還是淺色配色，都會依上面選的模式自動反轉明暗。</p>
+    </div></details>
+
+    <details data-k="obs"><summary>📡 OBS 設定方式</summary><div class="sec">
+      <p class="hint">OBS 來源由下到上的順序：<b>劇情畫面的圖片／影片 → 跑團介面 → 各角色的 CCFOLIA → 各角色的 Reactive</b>（對話區、聊天室、Live2D 等也放在跑團介面上面）。</p>
+      <ol class="note-ol">
+        <li>OBS 的畫布設 1920×1080。介面本身用「瀏覽器來源」，網址貼上「複製 OBS 網址」的內容（或勾「本機檔案」選「儲存 OBS 檔案」存的檔），寬 1920、高 1080，位置 0, 0。</li>
+        <li>每個角色各「新增來源 → 瀏覽器」，網址貼上該角色的「複製 CCFOLIA 網址」，寬高填角色底下顯示的 <b>CCFOLIA 瀏覽器來源</b>尺寸。</li>
+        <li>把「自訂 CSS」欄位清空，貼上該角色的「複製 CSS」。</li>
+        <li>角色的來源放在跑團介面的<b>上面</b>，右鍵 →「變形 → 編輯變形」，填入顯示的<b>位置</b>與<b>大小</b>，就會剛好落在角色格裡（「邊界框類型」保持「無邊界框」）。</li>
+        <li>畫面一片空白時：來源右鍵 →「互動」，登入 CCFOLIA 並進入房間（做過一次就會記住）。</li>
+        <li>第二位角色開始請<b>重新「新增來源」</b>建立，不要用「貼上（參照）」，否則全部都會變成同一個角色。</li>
+        <li>有語音頭像的角色：再「新增來源 → 瀏覽器」，網址貼「複製 Reactive 網址」，寬高與位置照角色底下的 <b>Reactive 瀏覽器來源</b>數字填。放在該角色 CCFOLIA 來源的<b>上面</b>（不會被狀態條蓋住），兩個來源選起來按右鍵「群組選取的項目」，之後就會一起移動。</li>
+      </ol>
+      <p class="hint">CCFOLIA 角色「狀態」的排列順序對應第 1、2、3 條的顏色（例：HP → MP → SAN）。聊天室輸入 <code>:HP-3</code>、<code>:SAN=45</code> 之類的指令，OBS 也會立刻更新。改了狀態條樣式或人數之後，要重新複製各角色的 CSS、核對尺寸與位置，跑團介面本身也要重新「複製 OBS 網址」或「儲存 OBS 檔案」（角色格會跟著變）。</p>
     </div></details>`;
   if (wasOpen) for (const d of ed.querySelectorAll('details')) d.open = wasOpen.has(d.dataset.k);
   sbRefresh();
