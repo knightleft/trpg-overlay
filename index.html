@@ -41,6 +41,8 @@ textarea{resize:vertical;min-height:80px;line-height:1.5}
 .hint{color:var(--ed-dim);font-size:11.5px;line-height:1.5;margin:4px 0}
 .hint a.jump,a.ext{color:#c9b6f5}
 label.f a.ext{float:right;font-size:11.5px}
+label.f .rst{float:right;padding:0 7px;font-size:11px;line-height:18px}
+.toolbar button:disabled{opacity:.4;cursor:default}
 .hint code{background:#0f0c16;padding:0 4px;border-radius:3px;color:#c9b6f5}
 #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#3a2456;color:#fff;padding:8px 16px;border-radius:8px;opacity:0;transition:.3s;pointer-events:none;z-index:99;font-family:sans-serif;font-size:13px}
 #toast.show{opacity:1}
@@ -158,7 +160,7 @@ html:has(body.output),body.output,body.output #wrap{background:transparent!impor
 #bar .tagb{margin-left:calc(var(--tag-gap,120px) - 26px)}   /* 標題與 Hashtag 的距離（減掉 flex 本身的 26px 間距） */
 #bar .sp{flex:1}
 /* 時間由 OBS 疊上，這裡只留空位 */
-#bar .time-slot{flex:none;width:180px}
+#bar .time-slot{flex:none;align-self:stretch;width:var(--time-w,280px)}
 
 /* 編輯器：配色區 */
 .swatches{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:4px}
@@ -241,7 +243,7 @@ body.output #sbLayer{display:none}
 <script src="statusbar/pcfonts.v1.js"></script>
 <script>
 // 版號：每次有小功能改動 +0.01；單純改錯字或微調同一件事不用加
-const VERSION = '1.06';
+const VERSION = '1.07';
 const KEY = 'trpg-overlay-v1';
 const OUTPUT = new URLSearchParams(location.search).get('view') === 'output';
 // OBS 瀏覽器來源讀不到 Chrome 的存檔，所以設定直接壓縮編在網址 #s= 後面（「複製 OBS 網址」產生）
@@ -287,7 +289,7 @@ const DEFAULT = {
   // 可自訂的區塊標題：t = 中文標題、e = 下方英文小字
   labels: { scene: { t: '場內・劇情扮演', e: 'DICE & ROLEPLAY' }, free: { t: '場外・玩家閒聊', e: 'PLAYER TALK' }, chat: { t: '聊天室', e: 'LIVE CHAT' }, notes: { t: '劇情筆記', e: 'NOTE' } },
   notesPanel: { show: true },   // 劇情筆記；不顯示時聊天室往下延伸
-  barCfg: { tagGap: 120 },   // 標題列：標題與 Hashtag 的距離 px
+  barCfg: { tagGap: 120, timeW: 280 },   // 標題列：標題與 Hashtag 的距離、右側時間空位寬度 px
   marquee: { show: true, height: 44 },   // 跑馬燈空格（疊在 VTuber 框內下緣）
   vt: { height: 420 },   // VTuber 格高度
   // pos：主持人放在哪裡（col＝角色欄下方、bar＝標題列右側）
@@ -344,7 +346,62 @@ function commit() {
     try { localStorage.setItem(KEY, JSON.stringify({ ...state, _v: VERSION })); }
     catch (e) { toast('儲存失敗：上傳的圖片太大，建議改用圖片網址'); }
   }, 300);
+  scheduleHistory();
 }
+
+/* ---------- 上一步／下一步 ----------
+   每次改動後等 0.5 秒才記一步，拖滑桿的過程只會記成一步。
+   自動量到的角色格尺寸（ccf.sizes）不算改動。 */
+const hist = { undo: [], redo: [], last: null, timer: 0 };
+const histKey = () => JSON.stringify({ ...state, ccf: { ...state.ccf, sizes: undefined } });
+function recordHistory() {
+  clearTimeout(hist.timer);
+  hist.timer = 0;
+  const key = histKey();
+  if (hist.last === null) hist.last = key;
+  if (key === hist.last) return;
+  hist.undo.push(hist.last);
+  if (hist.undo.length > 60) hist.undo.shift();
+  hist.redo.length = 0;
+  hist.last = key;
+  updateHistButtons();
+}
+function scheduleHistory() {
+  if (OUTPUT) return;
+  clearTimeout(hist.timer);
+  hist.timer = setTimeout(recordHistory, 500);
+}
+function restoreHistory(key) {
+  const sizes = state.ccf.sizes;
+  state = JSON.parse(key);
+  state.ccf.sizes = sizes;
+  hist.last = key;
+  buildEditor();
+  commit();
+}
+function undo() {
+  if (hist.timer) recordHistory();   // 還沒記下來的改動先記
+  if (!hist.undo.length) return;
+  hist.redo.push(hist.last);
+  restoreHistory(hist.undo.pop());
+}
+function redo() {
+  if (hist.timer) recordHistory();
+  if (!hist.redo.length) return;
+  hist.undo.push(hist.last);
+  restoreHistory(hist.redo.pop());
+}
+function updateHistButtons() {
+  const u = document.getElementById('undo'), r = document.getElementById('redo');
+  if (u) u.disabled = !hist.undo.length;
+  if (r) r.disabled = !hist.redo.length;
+}
+document.addEventListener('keydown', e => {
+  if (OUTPUT || !(e.ctrlKey || e.metaKey) || e.target.matches?.('input[type=text], textarea')) return;
+  const k = e.key.toLowerCase();
+  if (k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+  else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); redo(); }
+});
 // 網址帶設定時只照網址顯示，不跟瀏覽器存檔同步
 // 只接受同一個版本的分頁傳來的設定（舊版分頁不認得新欄位，同步過來會把新設定洗掉）
 if (bc && !PACKED) bc.onmessage = e => { if (e.data?.v !== VERSION) return; state = e.data.state; render(); if (!OUTPUT) buildEditor(); };
@@ -475,11 +532,13 @@ function render() {
     <div class="badge tagb" style="--tag-gap:${Math.max(26, Number(s.barCfg.tagGap) || 120)}px">HASHTAG</div><div class="tags">${tags}</div>
     <div class="sp"></div>
     ${s.kp.show && s.kp.pos === 'bar' ? `<div id="kp-bar">${kpInner(s.kp)}</div>` : ''}
-    <div class="time-slot"></div>
+    <div class="time-slot" style="--time-w:${Math.max(0, Number(s.barCfg.timeW) || 0)}px"></div>
   </div>
 `;
   applyPanelBg(st);
   updateMarqInfo(st);
+  const ts = st.querySelector('#bar .time-slot'), ti = OUTPUT ? null : ed.querySelector('[data-timeinfo]');
+  if (ts && ti) { const p = posInStage(ts, st); ti.innerHTML = `時間空位：位置 <b>${p.x}, ${p.y}</b>　大小 <b>${ts.offsetWidth} × ${ts.offsetHeight}</b>`; }
   const kav = st.querySelector('#p-kp .kav, #kp-bar .kav');
   if (kav) { const p = posInStage(kav, st); kpBox = { x: p.x + kav.clientLeft, y: p.y + kav.clientTop, w: kav.clientWidth, h: kav.clientHeight }; }
   else kpBox = null;
@@ -733,8 +792,9 @@ document.fonts.addEventListener('loadingdone', () => render());
 const txt = (label, path, ph = '') => `<label class="f">${label}</label><input type="text" data-path="${path}" value="${esc(getPath(path))}" placeholder="${esc(ph)}">`;
 const area = (label, path, rows = 6) => `<label class="f">${label}</label><textarea data-path="${path}" rows="${rows}">${esc(getPath(path))}</textarea>`;
 const img = (label, path) => `<label class="f">${label}</label><div class="img-in"><input type="text" data-path="${path}" value="${esc(getPath(path)?.startsWith('data:') ? '(已上傳圖片)' : getPath(path))}" placeholder="貼上圖片網址 https://…"><label class="btn">上傳<input type="file" accept="image/*" data-upload="${path}" hidden></label><button data-clear="${path}">清除</button></div>`;
-const range = (label, path, min = 0, max = 100) => `<label class="f">${label}：<span data-show="${path}">${getPath(path)}</span>%</label><input type="range" min="${min}" max="${max}" data-path="${path}" data-num value="${esc(getPath(path))}" style="width:100%">`;
-const pxRange = (label, path, min, max) => `<label class="f">${label}：<span data-show="${path}">${esc(getPath(path))}</span>px</label><input type="range" min="${min}" max="${max}" data-path="${path}" data-num value="${esc(getPath(path))}" style="width:100%">`;
+const resetBtn = path => `<button class="rst" data-reset="${path}" title="回到預設值">預設</button>`;
+const range = (label, path, min = 0, max = 100, reset) => `<label class="f">${label}：<span data-show="${path}">${getPath(path)}</span>%${reset ? resetBtn(path) : ''}</label><input type="range" min="${min}" max="${max}" data-path="${path}" data-num value="${esc(getPath(path))}" style="width:100%">`;
+const pxRange = (label, path, min, max, reset) => `<label class="f">${label}：<span data-show="${path}">${esc(getPath(path))}</span>px${reset ? resetBtn(path) : ''}</label><input type="range" min="${min}" max="${max}" data-path="${path}" data-num value="${esc(getPath(path))}" style="width:100%">`;
 const sizeRange = (path, label = '字體大小') => `<label class="f">${label}：<span data-show="${path}">${esc(getPath(path))}</span>px</label><input type="range" min="12" max="48" data-path="${path}" data-num value="${esc(getPath(path))}" style="width:100%">`;
 const bgControls = (label, key) => `${img(label, key + '.img')}
       <label class="f">顯示方式</label>
@@ -995,6 +1055,8 @@ function buildEditor() {
   $('#editor').innerHTML = `
     <h1>🎲 TRPG 跑團介面產生器<span class="ver">v${VERSION}</span></h1>
     <div class="toolbar">
+      <button id="undo" title="上一步（Ctrl+Z）">↶ 上一步</button>
+      <button id="redo" title="下一步（Ctrl+Y）">↷ 下一步</button>
       <button class="primary" id="obsUrl">複製 OBS 網址</button>
       <button id="obsFile">儲存 OBS 檔案</button>
       <button id="exp">匯出 JSON</button>
@@ -1020,10 +1082,10 @@ function buildEditor() {
     <details data-k="chars"><summary>🧙 角色（${s.characters.length}）</summary><div class="sec">
       <p class="hint">每個角色一格空白，給 OBS 疊上 CCFOLIA 的「瀏覽器來源」，HP/MP/SAN 會跟著 CCFOLIA 自動更新。右邊預覽格子裡的狀態條只是用範例數值、範例頭像示範樣式，OBS 畫面上只有空格。</p>
       ${txt('CCFOLIA 房間網址', 'ccf.room', 'https://ccfolia.com/rooms/…')}
-      ${pxRange('左欄（角色狀態）寬度', 'ccf.colW', 400, 640)}
+      ${pxRange('左欄（角色狀態）寬度', 'ccf.colW', 400, 640, true)}
       <p class="hint">左欄加寬時，劇情畫面會等比例縮小（維持 16:9），下方的場內／場外會變高。改了寬度要重新核對 OBS 裡各來源的位置。</p>
       <label style="display:flex;align-items:center;gap:6px;margin:8px 0 2px;cursor:pointer"><input type="checkbox" data-path="ccf.card.show" ${s.ccf.card.show ? 'checked' : ''}>每格左邊顯示玩家卡（玩家名字＋Reactive）</label>
-      ${s.ccf.card.show ? range('玩家卡寬度（佔高度的比例，100% 為正方形）', 'ccf.card.ratio', 50, 100) : ''}
+      ${s.ccf.card.show ? range('玩家卡寬度（佔高度的比例，100% 為正方形）', 'ccf.card.ratio', 50, 100, true) : ''}
       ${bgControls('角色狀態背景圖', 'charsBg')}
       ${kpBlock(s.kp)}
       ${chars}<button id="addChar">＋ 新增角色</button>
@@ -1056,13 +1118,13 @@ function buildEditor() {
 
     <details data-k="vt"><summary>🌙 VTuber 區</summary><div class="sec">
       ${txt('頂部文字（自由填寫，例如 Twitter 帳號、KP 名稱；留空就隱藏）', 'twitter')}
-      ${pxRange('VTuber 格高度', 'vt.height', 240, 480)}
+      ${pxRange('VTuber 格高度', 'vt.height', 240, 480, true)}
       ${bgControls('背景圖', 'vtBg')}
     </div></details>
     <details data-k="marquee"><summary>🎞️ 跑馬燈${s.marquee.show ? '' : '（隱藏中）'}</summary><div class="sec">
       <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer"><input type="checkbox" data-path="marquee.show" ${s.marquee.show ? 'checked' : ''}>在 VTuber 框內下緣疊一條跑馬燈空格</label>
       <p class="hint">只有外框、裡面空白，跑馬燈文字由 OBS 疊上去。疊在 VTuber 框裡面，不佔其他區塊的空間（會蓋到 Live2D 的下緣）。</p>
-      ${s.marquee.show ? pxRange('高度', 'marquee.height', 24, 80) + '<div class="obsline" data-marqinfo></div>' : ''}
+      ${s.marquee.show ? pxRange('高度', 'marquee.height', 24, 80, true) + '<div class="obsline" data-marqinfo></div>' : ''}
     </div></details>
 
     <details data-k="notes"><summary>📝 劇情筆記${s.notesPanel.show ? '' : '（隱藏中）'}</summary><div class="sec">
@@ -1073,8 +1135,10 @@ function buildEditor() {
 
     <details data-k="bar"><summary>🏷️ 標題列</summary><div class="sec">
       ${txt('今日標題', 'title')}${txt('副標', 'subtitle')}${txt('Hashtag（空白分隔）', 'hashtags')}
-      <p class="hint">最右邊留了 180px 空位給 OBS 放時間。</p>
-      ${pxRange('標題與 Hashtag 的距離', 'barCfg.tagGap', 26, 600)}
+      ${pxRange('右側時間空位寬度', 'barCfg.timeW', 120, 420, true)}
+      <div class="obsline" data-timeinfo></div>
+      <p class="hint">最右邊留給 OBS 放時間的空位。時間比空位寬時會被主持人（放在標題列時）或 Hashtag 擋到，請調寬。</p>
+      ${pxRange('標題與 Hashtag 的距離', 'barCfg.tagGap', 26, 600, true)}
     </div></details>
 
 
@@ -1096,6 +1160,7 @@ function buildEditor() {
   sbRefresh();
   updateCharNotes();
   updateObsInfo();
+  updateHistButtons();
 }
 function updateCharNotes() {
   for (const el of ed.querySelectorAll('[data-voicenote]')) {
@@ -1145,6 +1210,14 @@ ed.addEventListener('click', e => {
   const t = e.target.closest('button');
   if (!t) return;
   const cs = state.characters;
+  if (t.id === 'undo') { undo(); return; }
+  if (t.id === 'redo') { redo(); return; }
+  if (t.dataset.reset) {
+    const def = t.dataset.reset.split('.').reduce((o, k) => o?.[k], DEFAULT);
+    setPath(t.dataset.reset, structuredClone(def));
+    buildEditor(); commit();
+    return;
+  }
   if (t.dataset.kppos) {
     state.kp.pos = t.dataset.kppos;
     buildEditor(); commit();
@@ -1347,6 +1420,7 @@ function readImage(file, maxSize = 1280) {
   buildEditor();
   fit();
   render();
+  hist.last = histKey();
 })();
 </script>
 </body>
