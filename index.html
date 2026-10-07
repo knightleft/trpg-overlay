@@ -545,10 +545,12 @@ function layoutSlots(st) {
   const maxH = (innerH - gap * (n - 1)) / n - SLOT_PAD * 2 - 2;
   // 有玩家卡時：卡片高度＝狀態條高度，寬度＝高度 × ratio，狀態條排在卡片右邊
   const card = state.ccf.card.show, ratio = card ? Math.max(0.3, Math.min(1, (Number(state.ccf.card.ratio) || 75) / 100)) : 0, CARD_GAP = 6;
+  // 玩家卡統一寬度：以最高的那格（放得下的高度）為準，每格都用同一個寬度，不管有沒有放圖
+  const refH = Math.max(...slots.map((el, i) => Math.min(sizeOf(i).h, maxH)));
+  const cardW = card ? Math.round(refH * ratio) : 0;
   const fits = slots.map((el, i) => {
     const sz = sizeOf(i), innerW = el.clientWidth - SLOT_PAD * 2;
-    const k = Math.min(1, (innerW - (card ? CARD_GAP : 0)) / (sz.w + sz.h * ratio), maxH / sz.h);
-    const cardW = card ? Math.round(sz.h * k * ratio) : 0;
+    const k = Math.min(1, (innerW - (card ? cardW + CARD_GAP : 0)) / sz.w, maxH / sz.h);
     el.style.height = `${sz.h * k + SLOT_PAD * 2 + 2}px`;
     const pc = el.querySelector('.pcard');
     if (pc) pc.style.width = cardW + 'px';
