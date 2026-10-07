@@ -152,7 +152,9 @@ html:has(body.output),body.output,body.output #wrap{background:transparent!impor
   border:1px solid var(--sec);clip-path:polygon(12px 0,calc(100% - 12px) 0,100% 50%,calc(100% - 12px) 100%,12px 100%,0 50%);background:linear-gradient(180deg,var(--chip),var(--p2))}
 #bar .ttl{font-size:32px;font-weight:700;letter-spacing:3px;line-height:1.1}
 #bar .stl{font-size:16px;color:var(--dim);font-family:Cinzel,"Noto Serif TC",serif}
-#bar .tags{display:flex;gap:28px;font-size:18px;color:var(--soft)}
+/* Hashtag：每個 tag 不從中間斷開，空間不夠時整個換到第二行 */
+#bar .tags{display:flex;flex-wrap:wrap;gap:2px 28px;min-width:0;font-size:18px;line-height:1.3;color:var(--soft)}
+#bar .tags span{white-space:nowrap}
 #bar .tagb{margin-left:calc(var(--tag-gap,120px) - 26px)}   /* 標題與 Hashtag 的距離（減掉 flex 本身的 26px 間距） */
 #bar .sp{flex:1}
 /* 時間由 OBS 疊上，這裡只留空位 */
@@ -239,7 +241,7 @@ body.output #sbLayer{display:none}
 <script src="statusbar/pcfonts.v1.js"></script>
 <script>
 // 版號：每次有小功能改動 +0.01；單純改錯字或微調同一件事不用加
-const VERSION = '1.05';
+const VERSION = '1.06';
 const KEY = 'trpg-overlay-v1';
 const OUTPUT = new URLSearchParams(location.search).get('view') === 'output';
 // OBS 瀏覽器來源讀不到 Chrome 的存檔，所以設定直接壓縮編在網址 #s= 後面（「複製 OBS 網址」產生）
