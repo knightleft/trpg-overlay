@@ -130,9 +130,8 @@ html:has(body.output),body.output,body.output #wrap{background:transparent!impor
 
 /* 右側 */
 /* VTuber 格：改用強調色＋次色，跟其他欄位區隔 */
-#p-vt{flex:none;border-color:color-mix(in srgb,var(--sec) 75%,transparent);
-  background:radial-gradient(ellipse at 50% 35%,color-mix(in srgb,var(--acc) 26%,transparent),transparent 72%),
-    linear-gradient(180deg,color-mix(in srgb,var(--bg) 78%,var(--acc) 22%),color-mix(in srgb,var(--bg) 90%,var(--sec) 10%));
+/* VTuber 框挖空：裡面透明，只留外框；OBS 把 Live2D 放在跑團介面下面就會透出來（跑馬燈、頂部文字疊在上面） */
+#p-vt{flex:none;border-color:color-mix(in srgb,var(--sec) 75%,transparent);background:transparent;
   box-shadow:inset 0 0 0 4px color-mix(in srgb,var(--bg) 85%,var(--acc) 15%),inset 0 0 0 5px color-mix(in srgb,var(--sec) 50%,transparent),
     0 0 26px color-mix(in srgb,var(--acc) 40%,transparent)}
 #p-vt::before,#p-vt::after{width:34px;height:34px;border-color:var(--acc);opacity:.95}
@@ -243,7 +242,7 @@ body.output #sbLayer{display:none}
 <script src="statusbar/pcfonts.v1.js"></script>
 <script>
 // 版號：每次有小功能改動 +0.01；單純改錯字或微調同一件事不用加
-const VERSION = '1.07';
+const VERSION = '1.08';
 const KEY = 'trpg-overlay-v1';
 const OUTPUT = new URLSearchParams(location.search).get('view') === 'output';
 // OBS 瀏覽器來源讀不到 Chrome 的存檔，所以設定直接壓縮編在網址 #s= 後面（「複製 OBS 網址」產生）
@@ -296,7 +295,6 @@ const DEFAULT = {
   kp: { show: false, pos: 'col', name: '主持人', sub: 'GAME MASTER', avatar: '', icon: '🐙', voice: '', voiceZoom: 100, voiceX: 0, voiceY: 0, voiceAlpha: 100 },
   notes: '小鎮的異常氣味\n失蹤的鎮民\n教堂地下室的聲音\n奇怪的符號',
   charsBg: { img: '', opacity: 50, fit: 'contain', zoom: 100, x: 0, y: 0 },
-  vtBg: { img: '', opacity: 50, fit: 'contain', zoom: 100, x: 0, y: 0 },
   theme: { mode: 'dark', colors: { text: '#ece6f6', bg: '#0b0910', pri: '#bea0e6', sec: '#c9a96e', acc: '#8b5cf6' } },
 };
 
@@ -312,13 +310,14 @@ function fixState(s) {
     const size = (sc.lines == 2 ? sc.size2 : sc.size1) ?? sc.size;
     if (size !== undefined) sc.sizeB = size;
   }
-  for (const k of ['charsBg', 'vtBg', 'ccf', 'scene', 'talk', 'marquee', 'vt', 'kp', 'labels', 'notesPanel', 'barCfg']) s[k] = { ...DEFAULT[k], ...s[k] };
+  for (const k of ['charsBg', 'ccf', 'scene', 'talk', 'marquee', 'vt', 'kp', 'labels', 'notesPanel', 'barCfg']) s[k] = { ...DEFAULT[k], ...s[k] };
   s.labels = Object.fromEntries(Object.entries(DEFAULT.labels).map(([k, v]) => [k, { ...v, ...s.labels[k] }]));   // 新增的標題也補上預設
   s.sb = s.sb ? M.normalize(s.sb) : defaultSb();
   if (Array.isArray(s.characters)) s.characters = s.characters.map(c => ({ sub: '', ccf: '', player: '', voice: '', voiceZoom: 100, voiceX: 0, voiceY: 0, ...c }));   // 補上新欄位的預設值
   delete s._v;
   // 清掉已經拿掉的功能留下的欄位（存檔與 OBS 網址都會變小）
   delete s.voice;
+  delete s.vtBg;   // VTuber 區改成挖空，不再有背景圖
   for (const k of ['mode', 'avatars', 'cols', 'hollow']) delete s.ccf[k];
   // 語音頭像舊版是獨立的 OBS 來源（px 位置＋大小），改成格子背景（%）後位置歸零
   for (const c of [...(Array.isArray(s.characters) ? s.characters : []), ...(s.kp ? [s.kp] : [])]) {
@@ -522,7 +521,7 @@ function render() {
     </div>
   </div>
   <div class="col">
-    <div class="panel" id="p-vt" style="height:${Math.max(200, Number(s.vt.height) || 420)}px">${panelBg('vtBg')}${s.twitter ? `<div id="p-tw"><div class="tw">${esc(s.twitter)}</div></div>` : ""}${s.marquee.show ? `<div id="marq" style="height:${Math.max(20, Number(s.marquee.height) || 44)}px"></div>` : ''}</div>
+    <div class="panel" id="p-vt" style="height:${Math.max(200, Number(s.vt.height) || 420)}px">${s.twitter ? `<div id="p-tw"><div class="tw">${esc(s.twitter)}</div></div>` : ""}${s.marquee.show ? `<div id="marq" style="height:${Math.max(20, Number(s.marquee.height) || 44)}px"></div>` : ''}</div>
     <div class="panel" id="p-chat">${phHtml(s.labels.chat)}</div>
     ${s.notesPanel.show ? `<div class="panel" id="p-notes">${phHtml(s.labels.notes)}<div id="notes">${notesHtml}</div></div>` : ''}
   </div>
@@ -559,8 +558,9 @@ function maskLayers(holes) {
 }
 function applyHoles(st) {
   const scene = st.querySelector('#p-scene');
-  // 整體底色：挖掉劇情畫面
-  const m = maskLayers([{ x: scene.offsetLeft, y: scene.offsetTop, w: scene.offsetWidth, h: scene.offsetHeight }]);
+  // 整體底色：挖掉劇情畫面與 VTuber 框
+  const vt = st.querySelector('#p-vt');
+  const m = maskLayers([scene, vt].map(el => ({ x: el.offsetLeft, y: el.offsetTop, w: el.offsetWidth, h: el.offsetHeight })));
   st.style.setProperty('--m-img', m.img);
   st.style.setProperty('--m-size', m.size);
   st.style.setProperty('--m-pos', m.pos);
@@ -1119,7 +1119,7 @@ function buildEditor() {
     <details data-k="vt"><summary>🌙 VTuber 區</summary><div class="sec">
       ${txt('頂部文字（自由填寫，例如 Twitter 帳號、KP 名稱；留空就隱藏）', 'twitter')}
       ${pxRange('VTuber 格高度', 'vt.height', 240, 480, true)}
-      ${bgControls('背景圖', 'vtBg')}
+      <p class="hint">VTuber 框裡面是挖空透明的，OBS 把 Live2D 放在跑團介面的<b>下面</b>就會透出來；頂部文字和跑馬燈空格會疊在 Live2D 上面。</p>
     </div></details>
     <details data-k="marquee"><summary>🎞️ 跑馬燈${s.marquee.show ? '' : '（隱藏中）'}</summary><div class="sec">
       <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer"><input type="checkbox" data-path="marquee.show" ${s.marquee.show ? 'checked' : ''}>在 VTuber 框內下緣疊一條跑馬燈空格</label>
@@ -1144,7 +1144,7 @@ function buildEditor() {
 
 
     <details data-k="obs"><summary>📡 OBS 設定方式</summary><div class="sec">
-      <p class="hint">OBS 來源由下到上的順序：<b>劇情畫面的圖片／影片 → 跑團介面 → 各角色的 CCFOLIA</b>（場內、場外、聊天室、Live2D 等也放在跑團介面上面）。</p>
+      <p class="hint">OBS 來源由下到上的順序：<b>劇情畫面的圖片／影片、Live2D → 跑團介面 → 各角色的 CCFOLIA</b>（場內、場外、聊天室的內容放在跑團介面上面）。</p>
       <ol class="note-ol">
         <li>OBS 的畫布設 1920×1080。介面本身用「瀏覽器來源」，網址貼上「複製 OBS 網址」的內容（或勾「本機檔案」選「儲存 OBS 檔案」存的檔），寬 1920、高 1080，位置 0, 0。</li>
         <li>每個角色各「新增來源 → 瀏覽器」，網址貼上該角色的「複製 CCFOLIA 網址」，寬高填角色底下顯示的 <b>CCFOLIA 瀏覽器來源</b>尺寸。</li>
